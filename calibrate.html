@@ -27,11 +27,12 @@
 </head>
 <body>
   <h1>&#127936; Shot Detector Calibration</h1>
-  <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it for you so you can shoot two-handed. Between shots, also spend ~20 seconds doing things that should NOT count: talk, nod, lean, walk across frame &mdash; <b>without</b> pressing space. Then Stop &amp; Analyze, copy the data, and paste it back to Claude.</p>
+  <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it for you so you can shoot two-handed. On phones, hold the orange button instead. Between shots, also spend ~20 seconds doing things that should NOT count: talk, nod, lean, walk across frame &mdash; <b>without</b> pressing space. Then Stop &amp; Analyze, copy the data, and paste it back to Claude.</p>
   <div id="vidWrap">
     <video id="cam" autoplay playsinline muted></video>
     <div id="flash"></div>
   </div>
+  <button id="tapBtn" style="width:min(560px,94vw);padding:16px;font-size:17px;background:#13233b;color:#F58426;border:2px dashed #F58426;">&#128073; On a phone? HOLD this button during/right after each shot (= spacebar)</button>
   <div id="meter"><div id="meterFill"></div></div>
   <div class="stats">
     <span>Time: <b id="tVal">0s</b></span>
@@ -66,11 +67,11 @@
   let detections = [];  // {t, rise, dur, avgC, base, pts}
   let spaceDown = null;
 
-  /* ---- same detector as the live game (v3 thresholds) ---- */
-  function motionBaseline(){
+  /* ---- same detector as the live game (v4, tuned on labeled data) ---- */
+  function noiseFloor(){
     if(!baseCounts.length) return 0;
     const s = baseCounts.slice().sort((a, b) => a - b);
-    return s[Math.floor(s.length / 2)];
+    return s[Math.floor(s.length / 4)];
   }
   function formScore(rise, durMs, topY, smooth){
     const durN = Math.max(0, Math.min(1, (durMs - 150) / 750));
@@ -79,25 +80,28 @@
     return 10 + Math.round((0.45*durN + 0.25*smN + 0.30*extN) * 8) * 5;
   }
   function detectShot(now){
-    if(hist.length < 4) return;
-    if(now - lastShotAt < 850) return;
-    let loIdx = 0;
-    for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
-    if(loIdx >= hist.length - 2) return;
-    let hiIdx = loIdx + 1;
-    for(let i = loIdx + 1; i < hist.length; i++){ if(hist[i].y < hist[hiIdx].y) hiIdx = i; }
-    const lo = hist[loIdx], hi = hist[hiIdx];
-    const rise = lo.y - hi.y, dur = hi.t - lo.t;
-    if(lo.y < 0.38 || rise < 0.10 || dur < 120) return;
+    if(hist.length < 3) return;
+    if(now - lastShotAt < 800) return;
+    const curr = hist[hist.length - 1];
+    if(curr.t !== now) return;
+    if(curr.y > 0.50) return;
+    let lo = null, loIdx = 0;
+    for(let i = 0; i < hist.length - 1; i++){
+      if(!lo || hist[i].y > lo.y){ lo = hist[i]; loIdx = i; }
+    }
+    if(!lo || lo.y < 0.55) return;
+    const rise = lo.y - curr.y;
+    if(rise < 0.20) return;
+    const dur = curr.t - lo.t;
+    if(dur < 100) return;
     let cSum = 0, n = 0;
-    for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
+    for(let i = loIdx; i < hist.length; i++){ cSum += hist[i].c; n++; }
     const avgC = cSum / Math.max(n, 1);
-    const base = motionBaseline();
-    if(avgC < Math.max(50, base * 2.2)) return;
+    if(avgC < 85) return;
     lastShotAt = now;
-    const pts = formScore(rise, dur, hi.y);
+    const pts = formScore(rise, dur, curr.y);
     detections.push({ t: Math.round(now - t0), rise: +rise.toFixed(3), dur: Math.round(dur),
-                      avgC: Math.round(avgC), base: Math.round(base), pts });
+                      avgC: Math.round(avgC), base: noiseFloor(), pts });
     hist.length = 0;
     $("dVal").textContent = detections.length;
     flash("detect");
@@ -119,11 +123,11 @@
         }
       }
       baseCounts.push(count);
-      if(baseCounts.length > 30) baseCounts.shift();
+      if(baseCounts.length > 60) baseCounts.shift();
       const cy = count > 0 ? +((sumY / count) / PH).toFixed(3) : -1;
       if(recording) samples.push([Math.round(now - t0), cy, count]);
-      if(count > 20) hist.push({ t: now, y: cy, c: count });
-      while(hist.length && now - hist[0].t > 900) hist.shift();
+      if(count > Math.max(15, noiseFloor() * 1.2)) hist.push({ t: now, y: cy, c: count });
+      while(hist.length && now - hist[0].t > 850) hist.shift();
       detectShot(now);
       $("meterFill").style.width = Math.min(100, count / 6) + "%";
     }
@@ -157,6 +161,23 @@
     $("flash").classList.remove("label");
     $("lVal").textContent = labels.length;
   });
+
+  // mobile label button = spacebar equivalent
+  function labelDown(){
+    if(!recording || spaceDown !== null) return;
+    spaceDown = performance.now() - t0;
+    $("flash").classList.add("label");
+  }
+  function labelUp(){
+    if(!recording || spaceDown === null) return;
+    labels.push([Math.round(spaceDown), Math.round(performance.now() - t0)]);
+    spaceDown = null;
+    $("flash").classList.remove("label");
+    $("lVal").textContent = labels.length;
+  }
+  $("tapBtn").addEventListener("pointerdown", e => { e.preventDefault(); labelDown(); });
+  $("tapBtn").addEventListener("pointerup",   e => { e.preventDefault(); labelUp(); });
+  $("tapBtn").addEventListener("pointercancel", () => labelUp());
 
   /* ---- controls ---- */
   $("camBtn").addEventListener("click", async () => {
@@ -206,7 +227,7 @@
       "FALSE detections (no shot intended): " + falsePos + "\n" +
       "Copy the data below and paste it to Claude.";
     const dump = {
-      v: 3,
+      v: 4,
       meta: { durMs: samples.length ? samples[samples.length-1][0] : 0,
               ua: navigator.userAgent.slice(0, 80) },
       results: { labeled: labels.length, hits, misses, falsePos },
