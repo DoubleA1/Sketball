@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garden Shootout — 60 Second Challenge</title>
+<style>
+  :root{
+    --knicks-blue:#006BB6;
+    --knicks-orange:#F58426;
+    --court-dark:#0b1422;
+    --chalk:#f3ede2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #1c3a63 0%, transparent 60%),
+      var(--court-dark);
+    color:var(--chalk);
+    font-family:"Avenir Next Condensed","Arial Narrow",Impact,"Helvetica Neue",Arial,sans-serif;
+    overflow:hidden;
+  }
+  #app{position:relative;height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;}
+
+  /* ---------- screens ---------- */
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;}
+  .hidden{display:none !important;}
+
+  .eyebrow{letter-spacing:.35em;font-size:13px;color:var(--knicks-orange);text-transform:uppercase;}
+  h1{
+    font-size:clamp(44px,8vw,92px);
+    line-height:.95;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    color:#fff;
+    text-shadow:4px 4px 0 var(--knicks-blue), 8px 8px 0 rgba(245,132,38,.45);
+  }
+  .sub{max-width:560px;font-family:Georgia,serif;font-size:17px;line-height:1.5;color:#cfd8e6;}
+  .btn{
+    appearance:none;border:none;cursor:pointer;
+    background:var(--knicks-orange);color:#14100a;
+    font-family:inherit;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+    font-size:18px;padding:16px 36px;border-radius:4px;
+    box-shadow:0 6px 0 #a8500f;
+    transition:transform .08s ease, box-shadow .08s ease;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 8px 0 #a8500f;}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #a8500f;}
+  .btn:focus-visible{outline:3px solid #fff;outline-offset:3px;}
+  .btn.blue{background:var(--knicks-blue);color:#fff;box-shadow:0 6px 0 #033f6b;}
+  .btn.blue:hover{box-shadow:0 8px 0 #033f6b;}
+  .note{font-size:13px;color:#8fa0b8;font-family:Georgia,serif;font-style:italic;}
+  .err{color:#ff9d6e;font-family:Georgia,serif;max-width:520px;line-height:1.5;}
+
+  /* ---------- game stage ---------- */
+  #gameScreen{justify-content:flex-start;padding:0;}
+  #stage{position:relative;width:100%;height:100%;background:#000;overflow:hidden;}
+  #cam{
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;transform:scaleX(-1);
+    filter:saturate(.9) contrast(1.05);
+  }
+  #vignette{position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(to top, rgba(11,20,34,.85) 0%, transparent 22%),
+      linear-gradient(to bottom, rgba(11,20,34,.7) 0%, transparent 18%),
+      radial-gradient(ellipse at center, transparent 55%, rgba(11,20,34,.55) 100%);
+  }
+  #floor{position:absolute;left:0;right:0;bottom:0;height:7%;pointer-events:none;
+    background:repeating-linear-gradient(90deg,#b9783f 0 56px,#a96e38 56px 112px);
+    border-top:4px solid var(--knicks-orange);opacity:.9;}
+
+  /* HUD */
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;pointer-events:none;z-index:30;gap:12px;}
+  .hudBox{background:rgba(11,20,34,.82);border:2px solid var(--knicks-blue);border-radius:6px;padding:8px 18px;min-width:120px;}
+  .hudLabel{font-size:11px;letter-spacing:.3em;color:var(--knicks-orange);text-transform:uppercase;}
+  .hudVal{font-size:40px;font-weight:800;color:#fff;line-height:1;font-variant-numeric:tabular-nums;}
+  #clockBox.urgent .hudVal{color:#ff5c33;animation:pulse .5s infinite alternate;}
+  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.12)}}
+  #goalPill{
+    align-self:center;background:rgba(245,132,38,.92);color:#1c0e02;
+    border-radius:999px;padding:8px 20px;font-weight:800;letter-spacing:.08em;
+    text-transform:uppercase;font-size:16px;box-shadow:0 4px 14px rgba(0,0,0,.5);
+  }
+  #hint{
+    position:absolute;bottom:9%;left:50%;transform:translateX(-50%);
+    background:rgba(11,20,34,.85);border:2px dashed var(--knicks-orange);
+    padding:10px 22px;border-radius:6px;font-size:16px;letter-spacing:.08em;text-transform:uppercase;
+    z-index:30;pointer-events:none;
+  }
+
+  /* bonus notice banner */
+  .notice{
+    position:absolute;top:17%;left:50%;transform:translateX(-50%);
+    z-index:42;pointer-events:none;
+    background:rgba(11,20,34,.92);border:3px solid var(--knicks-orange);
+    border-radius:8px;padding:14px 28px;
+    font-size:clamp(20px,3.4vw,32px);font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+    color:#fff;white-space:nowrap;
+    animation:noticeAnim 4s ease forwards;
+  }
+  .notice b{color:var(--knicks-orange);}
+  @keyframes noticeAnim{
+    0%{opacity:0;transform:translateX(-50%) scale(.7);}
+    8%{opacity:1;transform:translateX(-50%) scale(1.05);}
+    14%{transform:translateX(-50%) scale(1);}
+    85%{opacity:1;}
+    100%{opacity:0;transform:translateX(-50%) translateY(-20px);}
+  }
+
+  /* hoop */
+  #hoopWrap{position:absolute;top:6%;right:5%;width:200px;z-index:20;pointer-events:none;}
+  #net{transform-origin:50% 0;}
+  .netShake{animation:netShake .6s ease;}
+  @keyframes netShake{
+    0%{transform:skewX(0)}20%{transform:skewX(10deg)}45%{transform:skewX(-8deg)}
+    70%{transform:skewX(5deg)}100%{transform:skewX(0)}
+  }
+
+  /* ball */
+  .ball{position:absolute;width:54px;height:54px;border-radius:50%;z-index:25;pointer-events:none;
+    background:radial-gradient(circle at 32% 30%, #ff9b4a 0%, #e2691b 55%, #9c4310 100%);
+    box-shadow:inset -6px -8px 14px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.5);
+  }
+  .ball::before,.ball::after{content:"";position:absolute;inset:0;border-radius:50%;
+    border:2px solid rgba(40,18,4,.65);}
+  .ball::before{clip-path:inset(0 0 0 49%);}
+  .ball::after{transform:rotate(90deg);clip-path:inset(0 0 0 49%);}
+
+  /* floating score popups */
+  .pop{
+    position:absolute;z-index:40;pointer-events:none;
+    font-size:46px;font-weight:900;letter-spacing:.04em;
+    color:var(--knicks-orange);
+    -webkit-text-stroke:2px #1c0e02;
+    text-shadow:0 3px 0 rgba(0,0,0,.45);
+    animation:popFloat 1s ease-out forwards;
+    white-space:nowrap;
+  }
+  .pop.swish{color:#7bffb0;}
+  .pop.block{color:#ff5c5c;font-size:40px;}
+  @keyframes popFloat{
+    0%{opacity:0;transform:translate(0,10px) scale(.6) rotate(-4deg);}
+    15%{opacity:1;transform:translate(6px,-14px) scale(1.15) rotate(2deg);}
+    100%{opacity:0;transform:translate(40px,-110px) scale(1) rotate(6deg);}
+  }
+  .callout{
+    position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);
+    z-index:41;pointer-events:none;font-size:64px;font-weight:900;text-transform:uppercase;
+    color:#fff;-webkit-text-stroke:3px var(--knicks-blue);
+    animation:callout .9s ease forwards;white-space:nowrap;
+  }
+  @keyframes callout{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-6deg);}
+    20%{opacity:1;transform:translate(-50%,-50%) scale(1.1) rotate(1deg);}
+    75%{opacity:1;}
+    100%{opacity:0;transform:translate(-50%,-58%) scale(1.05);}
+  }
+
+  /* ---------- WEMBY ---------- */
+  #wemby{position:absolute;top:8%;left:-340px;width:300px;z-index:26;pointer-events:none;}
+  #wemby.fly{animation:wembyFly 1.15s linear forwards;}
+  @keyframes wembyFly{
+    from{transform:translateX(0) rotate(-4deg);}
+    to{transform:translateX(calc(100vw + 700px)) rotate(4deg);}
+  }
+  .squig{stroke-dasharray:6 5;animation:squigWiggle .35s linear infinite;}
+  @keyframes squigWiggle{to{stroke-dashoffset:-11;}}
+  .armL{transform-origin:118px 96px;animation:armWaveL .5s ease-in-out infinite alternate;}
+  .armR{transform-origin:142px 96px;animation:armWaveR .45s ease-in-out infinite alternate;}
+  @keyframes armWaveL{from{transform:rotate(-7deg)}to{transform:rotate(9deg)}}
+  @keyframes armWaveR{from{transform:rotate(8deg)}to{transform:rotate(-6deg)}}
+
+  /* ---------- forms / leaderboard ---------- */
+  .panel{
+    background:linear-gradient(160deg,#10203a, #0b1422);
+    border:3px solid var(--knicks-blue);
+    border-top:6px solid var(--knicks-orange);
+    border-radius:10px;padding:32px 36px;max-width:620px;width:min(620px,94vw);
+    box-shadow:0 24px 60px rgba(0,0,0,.6);
+    max-height:92vh;overflow-y:auto;
+  }
+  .panel h2{font-size:34px;text-transform:uppercase;color:#fff;letter-spacing:.04em;margin-bottom:4px;}
+  .finalScore{font-size:64px;font-weight:900;color:var(--knicks-orange);line-height:1;}
+  .field{text-align:left;margin-top:16px;}
+  .field label{display:block;font-size:12px;letter-spacing:.25em;text-transform:uppercase;color:var(--knicks-orange);margin-bottom:6px;}
+  .field input,.field textarea{
+    width:100%;background:#0a1320;border:2px solid #28456b;border-radius:4px;
+    color:#fff;font-family:Georgia,serif;font-size:16px;padding:11px 12px;
+  }
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--knicks-orange);}
+  .field textarea{resize:vertical;min-height:70px;}
+  .panel .btn{display:block;margin:26px auto 0;}
+  .panel .note{display:block;margin-top:14px;line-height:1.5;}
+
+  table.board{width:100%;border-collapse:collapse;margin-top:14px;font-variant-numeric:tabular-nums;}
+  .board th{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:#7e93b3;text-align:left;padding:6px 8px;border-bottom:2px solid #28456b;}
+  .board td{padding:9px 8px;border-bottom:1px solid #1a2c47;font-size:16px;text-align:left;}
+  .board td.rank{color:#7e93b3;width:44px;}
+  .board td.pts{font-weight:800;color:var(--knicks-orange);text-align:right;}
+  .board tr.you td{background:rgba(245,132,38,.16);}
+  .board tr.you td:first-child{border-left:4px solid var(--knicks-orange);}
+  .board .msg{display:block;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#9fb1c9;}
+  .slotLabel{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#7e93b3;margin-top:20px;text-align:left;}
+  .repCall{
+    margin-top:20px;background:rgba(0,107,182,.18);border:2px solid var(--knicks-blue);
+    border-radius:6px;padding:14px 18px;font-family:Georgia,serif;font-size:16px;line-height:1.5;color:#dfe9f5;text-align:left;
+  }
+  .repCall b{color:var(--knicks-orange);font-family:inherit;}
+  .repTag{font-family:"Avenir Next Condensed","Arial Narrow",Impact,sans-serif;text-transform:uppercase;letter-spacing:.15em;font-weight:800;color:#fff;display:block;margin-top:8px;font-size:20px;}
+
+  @media (prefers-reduced-motion: reduce){
+    .squig,.armL,.armR{animation:none;}
+    #clockBox.urgent .hudVal{animation:none;}
+  }
+  @media (max-width:640px){
+    #hoopWrap{width:140px;}
+    .hudVal{font-size:28px;}
+    .pop{font-size:34px;}
+    .callout{font-size:42px;}
+    #goalPill{font-size:12px;padding:6px 12px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- INTRO -->
+  <div class="screen" id="introScreen">
+    <div class="eyebrow">Madison Square Garden · Fan Court</div>
+    <h1>Garden<br>Shootout</h1>
+    <p class="sub">Step back from your screen, square up, and shoot jumpers at the camera. Slow, controlled, full-extension form earns the most points. You'll have <b>60 seconds</b> from your first shot &mdash; and watch out for the lanky guy.</p>
+    <button class="btn" id="startBtn">Enable camera &amp; warm up</button>
+    <p class="note">Your camera feed stays on your device &mdash; nothing is recorded or uploaded.</p>
+    <p class="err hidden" id="camErr"></p>
+  </div>
+
+  <!-- GAME -->
+  <div class="screen hidden" id="gameScreen">
+    <div id="stage">
+      <video id="cam" autoplay playsinline muted></video>
+      <div id="vignette"></div>
+      <div id="floor"></div>
+
+      <div id="hud">
+        <div class="hudBox"><div class="hudLabel">Score</div><div class="hudVal" id="scoreVal">0</div></div>
+        <div id="goalPill" class="hidden"></div>
+        <div class="hudBox" id="clockBox"><div class="hudLabel">Clock</div><div class="hudVal" id="clockVal">60</div></div>
+      </div>
+
+      <div id="hint">Take your first shot to start the clock</div>
+
+      <!-- Hoop -->
+      <div id="hoopWrap">
+        <svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg">
+          <rect x="55" y="0" width="90" height="66" rx="4" fill="rgba(255,255,255,.18)" stroke="#fff" stroke-width="4"/>
+          <rect x="80" y="22" width="40" height="30" fill="none" stroke="var(--knicks-orange)" stroke-width="4"/>
+          <ellipse cx="100" cy="64" rx="44" ry="10" fill="none" stroke="#ff6a13" stroke-width="7"/>
+          <g id="net" stroke="#e9e9e9" stroke-width="2.5" fill="none" opacity=".95">
+            <path d="M60 68 L74 130 M82 71 L88 132 M100 73 L100 133 M118 71 L112 132 M140 68 L126 130"/>
+            <path d="M60 68 Q100 92 140 68 M66 92 Q100 112 134 92 M72 114 Q100 130 128 114"/>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Wemby -->
+      <div id="wemby">
+        <svg viewBox="0 0 300 240" xmlns="http://www.w3.org/2000/svg">
+          <path class="squig armL" d="M118 96 C 70 60, 95 30, 40 26 C 5 24, 30 -2, 2 6" stroke="#d9b48f" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <path class="squig armR" d="M142 96 C 200 70, 175 120, 240 95 C 285 78, 270 130, 298 112" stroke="#d9b48f" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <circle cx="6" cy="6" r="13" fill="#d9b48f"/>
+          <circle cx="294" cy="110" r="13" fill="#d9b48f"/>
+          <rect x="116" y="82" width="28" height="92" rx="12" fill="#0e0e10" stroke="#BEC0C2" stroke-width="3"/>
+          <text x="130" y="128" font-size="26" font-weight="900" fill="#fff" text-anchor="middle" font-family="Arial Narrow, sans-serif">1</text>
+          <path class="squig" d="M122 174 C 116 200, 126 212, 116 234" stroke="#0e0e10" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <path class="squig" d="M138 174 C 146 198, 134 214, 148 234" stroke="#0e0e10" stroke-width="9" fill="none" stroke-linecap="round"/>
+          <circle cx="130" cy="62" r="17" fill="#d9b48f"/>
+          <path d="M115 56 Q130 42 145 56" fill="#1a1a1a"/>
+          <circle cx="124" cy="62" r="2.4" fill="#111"/>
+          <circle cx="136" cy="62" r="2.4" fill="#111"/>
+          <text x="130" y="200" font-size="15" font-weight="800" fill="#BEC0C2" text-anchor="middle" font-family="Arial Narrow, sans-serif" letter-spacing="2">WEMBY</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENTRY FORM -->
+  <div class="screen hidden" id="entryScreen">
+    <div class="panel">
+      <div class="eyebrow">Buzzer!</div>
+      <h2>Time's up</h2>
+      <div class="finalScore" id="finalScore">0 pts</div>
+      <p class="note" id="shotSummary"></p>
+      <div class="field"><label for="nameIn">Your name</label><input id="nameIn" maxlength="24"></div>
+      <div class="field"><label for="townIn">Town / city</label><input id="townIn" maxlength="32"></div>
+      <div class="field"><label for="msgIn">If you could say one thing to the Knicks team, what would it be?</label><textarea id="msgIn" maxlength="140"></textarea></div>
+      <button class="btn" id="submitBtn">Post to the leaderboard</button>
+      <p class="note">Your name, town, score, and message will appear on the leaderboard.</p>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="screen hidden" id="boardScreen">
+    <div class="panel">
+      <div class="eyebrow">Garden Shootout</div>
+      <h2>Leaderboard</h2>
+      <div class="slotLabel">Where you landed</div>
+      <table class="board"><tbody id="slotRows"></tbody></table>
+      <div class="slotLabel">Top of the board</div>
+      <table class="board">
+        <thead><tr><th></th><th>Baller</th><th style="text-align:right">Pts</th></tr></thead>
+        <tbody id="topRows"></tbody>
+      </table>
+      <div class="repCall" id="repCall"></div>
+      <button class="btn blue" id="againBtn">Run it back</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  /* ============================================================
+     FIREBASE CONFIG — paste your own values between the quotes.
+     Get them from: Firebase console > Project settings (gear icon)
+     > Your apps > SDK setup and configuration > Config.
+     Until you paste real values, the game still works fine —
+     it just falls back to a per-device leaderboard.
+     ============================================================ */
+  const firebaseConfig = {
+    apiKey:            "AIzaSyBVmep3tpwTtseKf5xXXZshCv8GBYQ6nC0",
+    authDomain:        "shootout-508dc.firebaseapp.com",
+    databaseURL:       "https://shootout-508dc-default-rtdb.firebaseio.com",
+    projectId:         "shootout-508dc",
+    storageBucket:     "shootout-508dc.firebasestorage.app",
+    messagingSenderId: "457795189058",
+    appId:             "1:457795189058:web:2e5bbd34f29c5288a370db",
+    measurementId:     "G-1N81VBZQ0N"
+  };
+
+  if(!String(firebaseConfig.apiKey).startsWith("PASTE")){
+    try{
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js");
+      const { getDatabase, ref, get, push, set } =
+        await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js");
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      // Visit counting: logs page views + distinct users to Google Analytics
+      try{
+        const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics.js");
+        getAnalytics(app);
+      }catch(e){ console.warn("Analytics unavailable:", e); }
+      window.fbBoard = {
+        async load(){
+          const snap = await get(ref(db, "leaderboard"));
+          const val = snap.val() || {};
+          return Object.values(val);
+        },
+        async save(entry){
+          await set(push(ref(db, "leaderboard")), entry);
+        }
+      };
+    }catch(e){
+      console.warn("Firebase init failed - falling back to local leaderboard.", e);
+    }
+  }
+</script>
+<script>
+(function(){
+  "use strict";
+
+  /* ================= state ================= */
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), video = $("cam");
+  let stream = null;
+  let running = false;        // detection loop active
+  let gameLive = false;       // clock running
+  let timeLeft = 60, totalElapsed = 0, score = 0, shots = 0, blocks = 0, bestShot = 0;
+  let scoreAt30 = 0;
+  let clockInt = null;
+  let wembyTO = null, wembyArmed = false;
+  let lastShotAt = 0;
+  let lastEntry = null;
+  let prevFrame = null;
+  const hist = [];            // motion centroid history
+
+  // bonus rounds: extension seconds, rate multiplier, minimum point gain required
+  const BONUS = [
+    { ext: 30, mult: 1.3, minGain: 60 },
+    { ext: 20, mult: 1.7, minGain: 85 },
+    { ext: 15, mult: 2.2, minGain: 110 }
+  ];
+  let bonusRound = 0, goal = 0, goalActive = false;
+
+  const PW = 96, PH = 72;     // processing resolution
+  const proc = document.createElement("canvas");
+  proc.width = PW; proc.height = PH;
+  const pctx = proc.getContext("2d", { willReadFrequently: true });
+
+  /* ================= leaderboard persistence ================= */
+  // Tries Firebase (global board) -> browser localStorage -> in-memory.
+  const BOARD_KEY = "garden-shootout-board";
+  let memBoard = [];
+
+  async function loadBoard(){
+    if(window.fbBoard){
+      try{ return await window.fbBoard.load(); }
+      catch(e){ console.warn("Board load failed:", e); }
+    }
+    try{
+      const raw = localStorage.getItem(BOARD_KEY);
+      if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) return arr; }
+    }catch(e){ /* storage blocked */ }
+    return memBoard.slice();
+  }
+  async function saveEntry(entry){
+    if(window.fbBoard){
+      try{ await window.fbBoard.save(entry); return; }
+      catch(e){ console.warn("Board save failed:", e); }
+    }
+    try{
+      const arr = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]");
+      arr.push(entry);
+      localStorage.setItem(BOARD_KEY, JSON.stringify(arr.slice(-200)));
+      memBoard = arr;
+      return;
+    }catch(e){ /* storage blocked */ }
+    memBoard.push(entry);
+  }
+
+  /* ================= camera ================= */
+  async function startCamera(){
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+  }
+  function stopCamera(){
+    if(stream){ stream.getTracks().forEach(t => t.stop()); }
+    stream = null;
+    video.srcObject = null;
+  }
+
+  function beginRound(){
+    showScreen("gameScreen");
+    resetGame();
+    running = true;
+    requestAnimationFrame(loop);
+  }
+
+  $("startBtn").addEventListener("click", async () => {
+    $("camErr").classList.add("hidden");
+    try{
+      await startCamera();
+      beginRound();
+    }catch(err){
+      const e = $("camErr");
+      e.textContent = "Couldn't access the camera (" + (err && err.name ? err.name : "error") +
+        "). If you're viewing this inside another app's preview, download the file and open it directly in your browser, then allow camera access. (Tip: the S key simulates a shot if you just want to test.)";
+      e.classList.remove("hidden");
+    }
+  });
+
+  // Keyboard test mode: press S to simulate a shot
+  document.addEventListener("keydown", ev => {
+    if((ev.key === "s" || ev.key === "S") && !$("gameScreen").classList.contains("hidden")){
+      registerShot(0.18 + Math.random() * 0.1, 350 + Math.random() * 450, 0.2 + Math.random() * 0.3, 0.4 + Math.random() * 0.5);
+    }
+  });
+
+  /* ================= detection loop ================= */
+  let lastProc = 0;
+  function loop(ts){
+    if(!running) return;
+    if(ts - lastProc > 66){ // ~15 fps processing
+      lastProc = ts;
+      processFrame(performance.now());
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function processFrame(now){
+    if(video.readyState < 2) return;
+    pctx.drawImage(video, 0, 0, PW, PH);
+    let cur;
+    try{ cur = pctx.getImageData(0, 0, PW, PH).data; }
+    catch(e){ return; }
+    if(prevFrame){
+      let count = 0, sumY = 0;
+      for(let y = 0; y < PH; y++){
+        for(let x = 0; x < PW; x++){
+          const i = (y * PW + x) * 4;
+          const g1 = (cur[i] + cur[i+1] + cur[i+2]) / 3;
+          const g2 = (prevFrame[i] + prevFrame[i+1] + prevFrame[i+2]) / 3;
+          if(Math.abs(g1 - g2) > 26){ count++; sumY += y; }
+        }
+      }
+      if(count > 25){
+        hist.push({ t: now, y: (sumY / count) / PH, c: count });
+      }
+      while(hist.length && now - hist[0].t > 900) hist.shift();
+      detectShot(now);
+    }
+    prevFrame = cur;
+  }
+
+  function detectShot(now){
+    if(hist.length < 4) return;
+    if(now - lastShotAt < 950) return; // cooldown between shots
+
+    // Find the lowest point of motion, then the highest point AFTER it.
+    let loIdx = 0;
+    for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
+    if(loIdx >= hist.length - 2) return;
+    let hiIdx = loIdx + 1;
+    for(let i = loIdx + 1; i < hist.length; i++){ if(hist[i].y < hist[hiIdx].y) hiIdx = i; }
+
+    const lo = hist[loIdx], hi = hist[hiIdx];
+    const rise = lo.y - hi.y;
+    const dur = hi.t - lo.t;
+
+    // Anti-face-trigger: the swing must START in the lower half of the frame
+    // (a talking/moving head sits high and barely travels), must cover real
+    // vertical distance, and must involve a big patch of moving pixels.
+    if(lo.y < 0.42) return;                 // motion never dipped low enough = not a shot
+    if(rise < 0.12) return;                 // didn't travel far enough upward
+    if(dur < 120) return;                   // too fast to be a real arm swing (noise)
+
+    let cSum = 0, n = 0;
+    for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
+    const avgC = cSum / Math.max(n, 1);
+    if(avgC < 70) return;                   // small motion blob (face/hands-out-of-frame)
+
+    // smoothness of upward velocity
+    const vels = [];
+    for(let i = loIdx + 1; i <= hiIdx; i++){
+      const dt = (hist[i].t - hist[i-1].t) || 1;
+      vels.push((hist[i-1].y - hist[i].y) / dt * 1000);
+    }
+    let smooth = 0.5;
+    if(vels.length > 1){
+      const mean = vels.reduce((a,b)=>a+b,0) / vels.length;
+      const sd = Math.sqrt(vels.reduce((a,v)=>a+(v-mean)*(v-mean),0) / vels.length);
+      smooth = Math.max(0, Math.min(1, 1 - sd / (Math.abs(mean) + 0.001) * 0.5));
+    }
+    registerShot(rise, dur, hi.y, smooth);
+    hist.length = 0;
+  }
+
+  /* ================= scoring ================= */
+  function formScore(rise, durMs, topY, smooth){
+    // SLOWER, controlled shots score higher: a deliberate ~0.9s+ swing maxes out,
+    // a 150ms flick bottoms out.
+    const durN  = Math.max(0, Math.min(1, (durMs - 150) / 750));
+    const extN  = Math.max(0, Math.min(1, (0.5 - topY) / 0.4)); // follow-through height
+    const smN   = (smooth === undefined) ? 0.5 : smooth;
+    const blend = 0.45 * durN + 0.25 * smN + 0.30 * extN;
+    return 10 + Math.round(blend * 8) * 5; // 10..50 in steps of 5
+  }
+
+  function registerShot(rise, durMs, topY, smooth){
+    lastShotAt = performance.now();
+    if(!gameLive && timeLeft === 60 && totalElapsed === 0){ startClock(); }
+    if(!gameLive) return;
+    shots++;
+    if(wembyArmed){
+      // Wemby only ever appears WITH a shot - exactly this one gets swatted.
+      wembyArmed = false;
+      blocks++;
+      flyWemby();
+      animateBall(true);
+      spawnPop("BLOCKED! +0", true);
+      showCallout("Wemby says no");
+      armWemby(); // schedule the next ambush
+      return;
+    }
+    const pts = formScore(rise, durMs, topY, smooth);
+    bestShot = Math.max(bestShot, pts);
+    score += pts;
+    $("scoreVal").textContent = score;
+    animateBall(false);
+    spawnPop("+" + pts + " pts", false, pts >= 40);
+    if(pts >= 45) showCallout("Swish!");
+    if(goalActive && score >= goal) grantExtension();
+  }
+
+  /* ================= clock, wemby, bonus time ================= */
+  function startClock(){
+    gameLive = true;
+    $("hint").style.display = "none";
+    clockInt = setInterval(() => {
+      timeLeft--;
+      totalElapsed++;
+      $("clockVal").textContent = timeLeft;
+      $("clockBox").classList.toggle("urgent", timeLeft <= 10);
+
+      if(totalElapsed === 30) scoreAt30 = score;
+
+      if(timeLeft === 10 && bonusRound < BONUS.length && !goalActive) setGoal();
+
+      if(timeLeft <= 0){
+        if(goalActive && score >= goal){ grantExtension(); }
+        else endGame();
+      }
+    }, 1000);
+    armWemby();
+  }
+
+  function setGoal(){
+    const b = BONUS[bonusRound];
+    const rate = score / Math.max(totalElapsed, 1); // pts per second so far
+    const gain = Math.max(b.minGain, Math.ceil(rate * 10 * b.mult / 5) * 5);
+    if(bonusRound === 0 && scoreAt30 > 0 && score < 2 * scoreAt30){
+      goal = 2 * scoreAt30;            // classic "double your 30s score"
+    }else{
+      goal = score + gain;             // already doubled it (or no 30s score): raise the bar
+    }
+    goal = Math.ceil(goal / 5) * 5;
+    goalActive = true;
+    showNotice("Hit <b>" + goal + " points</b> to earn <b>+" + b.ext + " seconds!</b>");
+    const pill = $("goalPill");
+    pill.textContent = "Goal: " + goal + " pts \u2192 +" + b.ext + "s";
+    pill.classList.remove("hidden");
+  }
+
+  function grantExtension(){
+    const b = BONUS[bonusRound];
+    timeLeft += b.ext;
+    bonusRound++;
+    goalActive = false;
+    $("goalPill").classList.add("hidden");
+    $("clockVal").textContent = timeLeft;
+    $("clockBox").classList.toggle("urgent", timeLeft <= 10);
+    showCallout("+" + b.ext + " seconds!");
+  }
+
+  function armWemby(){
+    clearTimeout(wembyTO);
+    const delay = 12000 + Math.random() * 13000; // 12 to 25s
+    wembyTO = setTimeout(() => { if(gameLive) wembyArmed = true; }, delay);
+  }
+
+  function flyWemby(){
+    const w = $("wemby");
+    w.classList.remove("fly"); void w.offsetWidth; // restart animation
+    w.style.top = (5 + Math.random() * 25) + "%";
+    w.classList.add("fly");
+  }
+
+  function endGame(){
+    gameLive = false;
+    clearInterval(clockInt);
+    clearTimeout(wembyTO);
+    wembyArmed = false;
+    running = false;
+    stopCamera(); // camera light goes OFF on the results screens
+    $("finalScore").textContent = score + " pts";
+    $("shotSummary").textContent = shots + " shots \u00b7 best shot +" + bestShot +
+      (blocks ? " \u00b7 blocked by Wemby \u00d7" + blocks : " \u00b7 never blocked");
+    showScreen("entryScreen");
+  }
+
+  function resetGame(){
+    timeLeft = 60; totalElapsed = 0; score = 0; shots = 0; blocks = 0; bestShot = 0;
+    scoreAt30 = 0; bonusRound = 0; goal = 0; goalActive = false;
+    hist.length = 0; prevFrame = null; lastShotAt = 0; wembyArmed = false;
+    $("scoreVal").textContent = "0";
+    $("clockVal").textContent = "60";
+    $("clockBox").classList.remove("urgent");
+    $("goalPill").classList.add("hidden");
+    $("hint").style.display = "";
+    $("wemby").classList.remove("fly");
+  }
+
+  /* ================= visuals ================= */
+  function stageRect(){ return stage.getBoundingClientRect(); }
+
+  function animateBall(blocked){
+    const r = stageRect();
+    const hoop = $("hoopWrap").getBoundingClientRect();
+    const ball = document.createElement("div");
+    ball.className = "ball";
+    stage.appendChild(ball);
+    const sx = r.width * (0.35 + Math.random() * 0.2), sy = r.height * 0.88;
+    const ex = (hoop.left - r.left) + hoop.width * 0.5 - 27;
+    const ey = (hoop.top - r.top) + hoop.height * 0.34;
+    const cx = (sx + ex) / 2, cy = Math.min(sy, ey) - r.height * 0.42;
+    const t0 = performance.now(), dur = 850;
+    function step(now){
+      let t = (now - t0) / dur;
+      if(blocked && t > 0.42){
+        const bx = bez(0.42, sx, cx, ex), by = bez(0.42, sy, cy, ey);
+        const t2 = Math.min(1, (t - 0.42) / 0.4);
+        ball.style.left = (bx - t2 * r.width * 0.5) + "px";
+        ball.style.top  = (by + t2 * t2 * r.height * 0.7) + "px";
+        ball.style.transform = "rotate(" + (t2 * 720) + "deg) scale(" + (1 - t2 * 0.3) + ")";
+        if(t2 < 1) requestAnimationFrame(step); else ball.remove();
+        return;
+      }
+      if(t >= 1){
+        ball.remove();
+        const net = $("net");
+        net.classList.remove("netShake"); void net.getBoundingClientRect();
+        net.classList.add("netShake");
+        setTimeout(() => net.classList.remove("netShake"), 650);
+        return;
+      }
+      ball.style.left = bez(t, sx, cx, ex) + "px";
+      ball.style.top  = bez(t, sy, cy, ey) + "px";
+      ball.style.transform = "rotate(" + (t * 540) + "deg)";
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  function bez(t, a, b, c){ const u = 1 - t; return u*u*a + 2*u*t*b + t*t*c; }
+
+  function spawnPop(text, isBlock, isSwish){
+    const r = stageRect();
+    const p = document.createElement("div");
+    p.className = "pop" + (isBlock ? " block" : "") + (isSwish ? " swish" : "");
+    p.textContent = text;
+    p.style.left = (r.width * (0.25 + Math.random() * 0.4)) + "px";
+    p.style.top  = (r.height * (0.3 + Math.random() * 0.25)) + "px";
+    stage.appendChild(p);
+    setTimeout(() => p.remove(), 1050);
+  }
+
+  function showCallout(text){
+    const c = document.createElement("div");
+    c.className = "callout";
+    c.textContent = text;
+    stage.appendChild(c);
+    setTimeout(() => c.remove(), 950);
+  }
+
+  function showNotice(html){
+    const n = document.createElement("div");
+    n.className = "notice";
+    n.innerHTML = html;
+    stage.appendChild(n);
+    setTimeout(() => n.remove(), 4100);
+  }
+
+  /* ================= leaderboard flow ================= */
+  $("submitBtn").addEventListener("click", async () => {
+    const btn = $("submitBtn");
+    if(btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "Posting\u2026";
+    const name = ($("nameIn").value.trim() || "Anonymous").slice(0, 24);
+    const town = ($("townIn").value.trim() || "Unknown").slice(0, 32);
+    const msg  = ($("msgIn").value.trim() || "\u2014").slice(0, 140);
+    lastEntry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+      name, town, msg, score, ts: Date.now()
+    };
+    try{
+      await saveEntry(lastEntry);
+      let board = await loadBoard();
+      if(!board.some(e => e.id === lastEntry.id)) board.push(lastEntry);
+      board.sort((a, b) => b.score - a.score || a.ts - b.ts);
+      renderBoard(board);
+      showScreen("boardScreen");
+    }finally{
+      btn.disabled = false;
+      btn.textContent = "Post to the leaderboard";
+    }
+  });
+
+  function rowHTML(rank, e, you){
+    return '<tr class="' + (you ? "you" : "") + '">' +
+      '<td class="rank">#' + rank + '</td>' +
+      '<td>' + esc(e.name) + ' <span class="msg">' + esc(e.town) + ' \u2014 \u201C' + esc(e.msg) + '\u201D</span></td>' +
+      '<td class="pts">' + e.score + '</td></tr>';
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function renderBoard(board){
+    const isYou = e => e.id === lastEntry.id;
+    const i = board.findIndex(isYou);
+    let slot = "";
+    if(i > 0)                slot += rowHTML(i,     board[i-1], false);
+                             slot += rowHTML(i + 1, board[i],   true);
+    if(i < board.length - 1) slot += rowHTML(i + 2, board[i+1], false);
+    $("slotRows").innerHTML = slot;
+    $("topRows").innerHTML = board.slice(0, 5).map((e, k) => rowHTML(k + 1, e, isYou(e))).join("");
+
+    const townLC = lastEntry.town.toLowerCase();
+    const champ = board.filter(e => (e.town || "").toLowerCase() === townLC)[0]; // board is sorted
+    const rc = $("repCall");
+    if(!champ || isYou(champ)){
+      rc.innerHTML = "You're now the one to beat in <b>" + esc(lastEntry.town) + "</b> with <b>" + lastEntry.score +
+        " pts</b>. Think you can top yourself?<span class=\"repTag\">Defend the block. Run it back.</span>";
+    }else{
+      rc.innerHTML = "<b>" + esc(champ.name) + "</b> holds it down for <b>" + esc(champ.town) + "</b> with <b>" +
+        champ.score + " pts</b>. You put up " + lastEntry.score + ". Think you can beat that?" +
+        "<span class=\"repTag\">Can you represent?</span>";
+    }
+  }
+
+  $("againBtn").addEventListener("click", async () => {
+    try{
+      await startCamera(); // camera comes back ON only when running it back
+      beginRound();
+    }catch(err){
+      showScreen("introScreen");
+      const e = $("camErr");
+      e.textContent = "Couldn't restart the camera (" + (err && err.name ? err.name : "error") + "). Check your browser's camera permission and try again.";
+      e.classList.remove("hidden");
+    }
+  });
+
+  /* ================= screens ================= */
+  function showScreen(id){
+    ["introScreen","gameScreen","entryScreen","boardScreen"].forEach(s =>
+      $(s).classList.toggle("hidden", s !== id));
+  }
+})();
+</script>
+</body>
+</html>
