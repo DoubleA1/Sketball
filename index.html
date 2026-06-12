@@ -158,9 +158,33 @@
     100%{opacity:0;transform:translate(-50%,-58%) scale(1.05);}
   }
 
+  /* ---------- multiplier pickups ---------- */
+  .mult{
+    position:absolute;z-index:27;pointer-events:none;
+    font-size:56px;font-weight:900;letter-spacing:.02em;color:#fff;
+    -webkit-text-stroke:2px #1c0e02;
+    text-shadow:0 0 18px rgba(245,132,38,.95), 0 4px 0 rgba(0,0,0,.4);
+  }
+  .mult.x3{color:#ffd84d;text-shadow:0 0 24px rgba(255,216,77,.95), 0 4px 0 rgba(0,0,0,.4);}
+  .mult.popAnim{animation:multPop .45s ease forwards;}
+  @keyframes multPop{
+    0%{transform:scale(1);opacity:1;}
+    40%{transform:scale(1.9) rotate(8deg);opacity:1;}
+    100%{transform:scale(2.8) rotate(14deg);opacity:0;}
+  }
+
+  /* ---------- mute button ---------- */
+  #muteBtn{
+    position:absolute;bottom:9%;right:18px;z-index:31;pointer-events:auto;
+    appearance:none;cursor:pointer;
+    background:rgba(11,20,34,.85);border:2px solid var(--knicks-blue);border-radius:6px;
+    color:#fff;font-size:22px;line-height:1;padding:8px 12px;
+  }
+  #muteBtn:focus-visible{outline:3px solid #fff;outline-offset:2px;}
+
   /* ---------- WEMBY ---------- */
   #wemby{position:absolute;top:8%;left:-340px;width:300px;z-index:26;pointer-events:none;}
-  #wemby.fly{animation:wembyFly 1.15s linear forwards;}
+  #wemby.fly{animation:wembyFly 2.3s linear forwards;}
   @keyframes wembyFly{
     from{transform:translateX(0) rotate(-4deg);}
     to{transform:translateX(calc(100vw + 700px)) rotate(4deg);}
@@ -250,6 +274,7 @@
       </div>
 
       <div id="hint">Take your first shot to start the clock</div>
+      <button id="muteBtn" aria-label="Mute sound">&#128266;</button>
 
       <!-- Hoop -->
       <div id="hoopWrap">
@@ -375,8 +400,9 @@
   let stream = null;
   let running = false;        // detection loop active
   let gameLive = false;       // clock running
-  let timeLeft = 60, totalElapsed = 0, score = 0, shots = 0, blocks = 0, bestShot = 0;
+  let timeLeft = 60, totalElapsed = 0, score = 0, baseScore = 0, shots = 0, blocks = 0, bestShot = 0;
   let scoreAt30 = 0;
+  let activeMult = null, multTO = null;
   let clockInt = null;
   let wembyTO = null, wembyArmed = false;
   let lastShotAt = 0;
@@ -428,6 +454,201 @@
     memBoard.push(entry);
   }
 
+  /* ================= audio engine (all sounds synthesized in-browser) ================= */
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let actx = null, master = null, musicGain = null, muted = false;
+  let musicTimer = null, nextNote = 0, stepIdx = 0, noiseBuf = null;
+  const SPB16 = 60 / 122 / 4; // 16th-note length at 122 bpm
+  // E-minor funk bassline, 16 steps (0 = rest)
+  const BASS = [82.41,0,82.41,0, 98,0,82.41,110, 110,0,98,0, 123.47,98,82.41,0];
+
+  function ensureAudio(){
+    if(!AC) return;
+    if(!actx){
+      actx = new AC();
+      master = actx.createGain(); master.gain.value = muted ? 0 : 1; master.connect(actx.destination);
+      musicGain = actx.createGain(); musicGain.gain.value = 0.5; musicGain.connect(master);
+    }
+    if(actx.state === "suspended") actx.resume();
+  }
+  function getNoise(){
+    if(!noiseBuf){
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.3, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for(let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuf;
+  }
+  function playKick(t){
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.16);
+  }
+  function playHat(t){
+    const s = actx.createBufferSource(); s.buffer = getNoise();
+    const f = actx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.07, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    s.connect(f); f.connect(g); g.connect(musicGain); s.start(t); s.stop(t + 0.06);
+  }
+  function playSnare(t){
+    const s = actx.createBufferSource(); s.buffer = getNoise();
+    const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    s.connect(f); f.connect(g); g.connect(musicGain); s.start(t); s.stop(t + 0.13);
+  }
+  function playBass(t, freq){
+    const o = actx.createOscillator(); o.type = "square"; o.frequency.value = freq;
+    const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 750;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(f); f.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.22);
+  }
+  function musicTick(){
+    while(nextNote < actx.currentTime + 0.12){
+      const i = stepIdx % 16;
+      if(i % 4 === 0) playKick(nextNote);
+      if(i === 4 || i === 12) playSnare(nextNote);
+      if(i % 2 === 1) playHat(nextNote);
+      const f = BASS[i];
+      if(f) playBass(nextNote, (stepIdx % 32) >= 16 ? f * 2 : f); // octave jump every other bar
+      nextNote += SPB16;
+      stepIdx++;
+    }
+  }
+  function startMusic(){
+    if(!AC) return;
+    ensureAudio();
+    stopMusic();
+    nextNote = actx.currentTime + 0.05;
+    stepIdx = 0;
+    musicTimer = setInterval(musicTick, 30);
+  }
+  function stopMusic(){ clearInterval(musicTimer); musicTimer = null; }
+
+  // ----- sound effects -----
+  function sfxShot(){ // "fwip" on release
+    if(!actx) return; const t = actx.currentTime;
+    const s = actx.createBufferSource(); s.buffer = getNoise();
+    const f = actx.createBiquadFilter(); f.type = "bandpass";
+    f.frequency.setValueAtTime(500, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.18);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.22);
+  }
+  function sfxSwish(){ // net swish + score chime when it drops
+    if(!actx) return; const t = actx.currentTime;
+    const s = actx.createBufferSource(); s.buffer = getNoise();
+    const f = actx.createBiquadFilter(); f.type = "lowpass";
+    f.frequency.setValueAtTime(3200, t);
+    f.frequency.exponentialRampToValueAtTime(500, t + 0.28);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.32);
+    [[880, 0], [1174.7, 0.09]].forEach(p => {
+      const o = actx.createOscillator(); o.type = "sine"; o.frequency.value = p[0];
+      const og = actx.createGain();
+      og.gain.setValueAtTime(0.12, t + p[1]);
+      og.gain.exponentialRampToValueAtTime(0.001, t + p[1] + 0.18);
+      o.connect(og); og.connect(master); o.start(t + p[1]); o.stop(t + p[1] + 0.2);
+    });
+  }
+  function sfxSwoop(){ // Wemby slides in
+    if(!actx) return; const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = "sawtooth";
+    o.frequency.setValueAtTime(750, t);
+    o.frequency.exponentialRampToValueAtTime(110, t + 0.7);
+    const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1400;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + 0.78);
+  }
+  function sfxBlock(){ // denied buzz
+    if(!actx) return; const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = "square"; o.frequency.value = 105;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.32);
+  }
+  function sfxPop(){ // multiplier popped
+    if(!actx) return; const t = actx.currentTime;
+    [[523.25, 0], [1046.5, 0.06], [1568, 0.12]].forEach(p => {
+      const o = actx.createOscillator(); o.type = "triangle"; o.frequency.value = p[0];
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.18, t + p[1]);
+      g.gain.exponentialRampToValueAtTime(0.001, t + p[1] + 0.12);
+      o.connect(g); g.connect(master); o.start(t + p[1]); o.stop(t + p[1] + 0.14);
+    });
+  }
+  $("muteBtn").addEventListener("click", () => {
+    muted = !muted;
+    if(master) master.gain.value = muted ? 0 : 1;
+    $("muteBtn").innerHTML = muted ? "&#128263;" : "&#128266;";
+  });
+
+  /* ================= multiplier pickups ================= */
+  function scheduleMult(){
+    clearTimeout(multTO);
+    multTO = setTimeout(() => {
+      if(!gameLive) return;
+      if(activeMult){ scheduleMult(); return; }
+      spawnMult();
+    }, 6000 + Math.random() * 8000);
+  }
+  function spawnMult(){
+    const val = Math.random() < 0.28 ? 3 : 2;   // 3x is the rarer prize
+    const el = document.createElement("div");
+    el.className = "mult" + (val === 3 ? " x3" : "");
+    el.textContent = val + "x";
+    stage.appendChild(el);
+    const r = stageRect();
+    const t0 = performance.now(), dur = 4500;
+    activeMult = { value: val, el };
+    function drift(now){
+      if(el.dataset.popped) return;
+      const t = (now - t0) / dur;
+      if(t >= 1){
+        el.remove();
+        if(activeMult && activeMult.el === el) activeMult = null;
+        scheduleMult();
+        return;
+      }
+      // top-left to bottom-right, with a wavy bob
+      el.style.left = (-70 + t * (r.width + 140)) + "px";
+      el.style.top  = (-50 + t * r.height * 0.85 + Math.sin(t * 6 * Math.PI) * 38) + "px";
+      requestAnimationFrame(drift);
+    }
+    requestAnimationFrame(drift);
+  }
+  function popMult(){
+    if(!activeMult) return 1;
+    const m = activeMult.value, el = activeMult.el;
+    activeMult = null;
+    el.dataset.popped = "1";
+    el.classList.add("popAnim");
+    sfxPop();
+    setTimeout(() => el.remove(), 480);
+    scheduleMult();
+    return m;
+  }
+  function clearMult(){
+    clearTimeout(multTO);
+    activeMult = null;
+    stage.querySelectorAll(".mult").forEach(e => e.remove());
+  }
+
   /* ================= camera ================= */
   async function startCamera(){
     stream = await navigator.mediaDevices.getUserMedia({
@@ -446,6 +667,8 @@
   function beginRound(){
     showScreen("gameScreen");
     resetGame();
+    ensureAudio();   // created inside the button click = allowed by browsers
+    startMusic();
     running = true;
     requestAnimationFrame(loop);
   }
@@ -565,25 +788,37 @@
     if(!gameLive && timeLeft === 60 && totalElapsed === 0){ startClock(); }
     if(!gameLive) return;
     shots++;
+    sfxShot(); // ball leaves the hands
     if(wembyArmed){
       // Wemby only ever appears WITH a shot - exactly this one gets swatted.
       wembyArmed = false;
       blocks++;
       flyWemby();
       animateBall(true);
+      setTimeout(sfxBlock, 380); // buzz when the swat lands
       spawnPop("BLOCKED! +0", true);
       showCallout("Wemby says no");
       armWemby(); // schedule the next ambush
       return;
     }
-    const pts = formScore(rise, durMs, topY, smooth);
+    const basePts = formScore(rise, durMs, topY, smooth);
+    let pts = basePts, m = 1;
+    if(activeMult){ m = popMult(); pts = basePts * m; }
     bestShot = Math.max(bestShot, pts);
-    score += pts;
+    score += pts;          // displayed score (with multipliers)
+    baseScore += basePts;  // form-only score (drives bonus-time goals)
     $("scoreVal").textContent = score;
+    updateGoalPill();
     animateBall(false);
-    spawnPop("+" + pts + " pts", false, pts >= 40);
-    if(pts >= 45) showCallout("Swish!");
-    if(goalActive && score >= goal) grantExtension();
+    setTimeout(sfxSwish, 720); // swish as it drops through
+    if(m > 1){
+      spawnPop("+" + basePts + " \u00d7" + m + " = " + pts + " pts", false, true);
+      showCallout(m + "x bonus!");
+    }else{
+      spawnPop("+" + pts + " pts", false, pts >= 40);
+      if(pts >= 45) showCallout("Swish!");
+    }
+    if(goalActive && baseScore >= goal) grantExtension();
   }
 
   /* ================= clock, wemby, bonus time ================= */
@@ -596,32 +831,39 @@
       $("clockVal").textContent = timeLeft;
       $("clockBox").classList.toggle("urgent", timeLeft <= 10);
 
-      if(totalElapsed === 30) scoreAt30 = score;
+      if(totalElapsed === 30) scoreAt30 = baseScore; // multipliers don't count toward bonus time
 
       if(timeLeft === 10 && bonusRound < BONUS.length && !goalActive) setGoal();
 
       if(timeLeft <= 0){
-        if(goalActive && score >= goal){ grantExtension(); }
+        if(goalActive && baseScore >= goal){ grantExtension(); }
         else endGame();
       }
     }, 1000);
     armWemby();
+    scheduleMult();
   }
 
   function setGoal(){
     const b = BONUS[bonusRound];
-    const rate = score / Math.max(totalElapsed, 1); // pts per second so far
+    const rate = baseScore / Math.max(totalElapsed, 1); // base pts per second so far
     const gain = Math.max(b.minGain, Math.ceil(rate * 10 * b.mult / 5) * 5);
-    if(bonusRound === 0 && scoreAt30 > 0 && score < 2 * scoreAt30){
+    if(bonusRound === 0 && scoreAt30 > 0 && baseScore < 2 * scoreAt30){
       goal = 2 * scoreAt30;            // classic "double your 30s score"
     }else{
-      goal = score + gain;             // already doubled it (or no 30s score): raise the bar
+      goal = baseScore + gain;         // already doubled it (or no 30s score): raise the bar
     }
     goal = Math.ceil(goal / 5) * 5;
     goalActive = true;
-    showNotice("Hit <b>" + goal + " points</b> to earn <b>+" + b.ext + " seconds!</b>");
+    showNotice("Hit <b>" + goal + " form points</b> to earn <b>+" + b.ext + " seconds!</b>" +
+      "<br><span style=\"font-size:.55em;letter-spacing:.1em;color:#9fb1c9;\">Multiplier bonuses don't count toward this goal</span>");
+    updateGoalPill();
+  }
+
+  function updateGoalPill(){
     const pill = $("goalPill");
-    pill.textContent = "Goal: " + goal + " pts \u2192 +" + b.ext + "s";
+    if(!goalActive){ pill.classList.add("hidden"); return; }
+    pill.textContent = "Goal: " + goal + " \u00b7 you: " + baseScore + " \u2192 +" + BONUS[bonusRound].ext + "s";
     pill.classList.remove("hidden");
   }
 
@@ -643,6 +885,7 @@
   }
 
   function flyWemby(){
+    sfxSwoop();
     const w = $("wemby");
     w.classList.remove("fly"); void w.offsetWidth; // restart animation
     w.style.top = (5 + Math.random() * 25) + "%";
@@ -655,6 +898,8 @@
     clearTimeout(wembyTO);
     wembyArmed = false;
     running = false;
+    stopMusic();
+    clearMult();
     stopCamera(); // camera light goes OFF on the results screens
     $("finalScore").textContent = score + " pts";
     $("shotSummary").textContent = shots + " shots \u00b7 best shot +" + bestShot +
@@ -663,9 +908,10 @@
   }
 
   function resetGame(){
-    timeLeft = 60; totalElapsed = 0; score = 0; shots = 0; blocks = 0; bestShot = 0;
+    timeLeft = 60; totalElapsed = 0; score = 0; baseScore = 0; shots = 0; blocks = 0; bestShot = 0;
     scoreAt30 = 0; bonusRound = 0; goal = 0; goalActive = false;
     hist.length = 0; prevFrame = null; lastShotAt = 0; wembyArmed = false;
+    clearMult();
     $("scoreVal").textContent = "0";
     $("clockVal").textContent = "60";
     $("clockBox").classList.remove("urgent");
