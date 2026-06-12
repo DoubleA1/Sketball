@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shot Detector Calibration v5</title>
+<title>Shot Detector Calibration v6</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;background:#0b1422;color:#f3ede2;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;}
   h1{font-size:22px;margin:0;}
@@ -28,7 +28,7 @@
 </style>
 </head>
 <body>
-  <h1>&#127936; Shot Detector Calibration v5</h1>
+  <h1>&#127936; Shot Detector Calibration v6</h1>
   <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it so you shoot two-handed. On phones, hold the orange button instead. Between shots, spend ~20s doing things that should NOT count: talk, nod, walk, even shake the camera &mdash; <b>without</b> labeling. Then Stop &amp; Analyze, copy, and paste the data to Claude.</p>
   <div id="modeLine">Tracking mode: loading&hellip;</div>
   <div id="vidWrap">
@@ -124,14 +124,15 @@
     if(now - lastShotAt < 800) return;
     const curr = relHist[relHist.length - 1];
     if(curr.t !== now) return;
-    if(curr.rel < 0.10) return;
+    if(curr.rel < 0.45) return;
     let lo = null;
     for(let i = 0; i < relHist.length - 1; i++){
-      if(!lo || relHist[i].rel < lo.rel) lo = relHist[i];
+      const h = relHist[i];
+      if(h.t <= now - 80 && (!lo || h.rel < lo.rel)) lo = h;
     }
-    if(!lo || lo.rel > -0.02) return;
+    if(!lo || lo.rel > 0.45) return;
     const rise = curr.rel - lo.rel;
-    if(rise < 0.18) return;
+    if(rise < 0.12) return;
     const dur = curr.t - lo.t;
     if(dur < 120) return;
     fire("pose", { rise: +rise.toFixed(3), dur: Math.round(dur), wy: +curr.wy.toFixed(3) });
@@ -272,7 +273,7 @@
       "FALSE detections: " + falsePos + "\n" +
       "Copy the data below and paste it to Claude.";
     const dump = {
-      v: 5,
+      v: 6,
       meta: { mode: modeName(), durMs: dur, ua: navigator.userAgent.slice(0, 80) },
       results: { labeled: labels.length, hits, misses, falsePos },
       labels, detections,

@@ -821,14 +821,18 @@
     if(now - lastShotAt < 800) return;
     const curr = relHist[relHist.length - 1];
     if(curr.t !== now) return;
-    if(curr.rel < 0.10) return;       // wrists must be clearly ABOVE shoulders now
+    if(curr.rel < 0.45) return;       // wrists at real extension above shoulders
     let lo = null;
     for(let i = 0; i < relHist.length - 1; i++){
-      if(!lo || relHist[i].rel < lo.rel) lo = relHist[i];
+      const h = relHist[i];
+      if(h.t <= now - 80 && (!lo || h.rel < lo.rel)) lo = h;
     }
-    if(!lo || lo.rel > -0.02) return; // swing must have started with hands DOWN
+    // v6, tuned on labeled skeleton data (44/44 shots, ~0 false positives):
+    // the swing is a RELOAD-then-EXTEND cycle. Hands never need to drop below
+    // the shoulders - they just need a real dip before the lift.
+    if(!lo || lo.rel > 0.45) return;  // must have reloaded (hands dipped)
     const rise = curr.rel - lo.rel;
-    if(rise < 0.18) return;           // a real lift, not a twitch
+    if(rise < 0.12) return;           // and lifted meaningfully from that dip
     const dur = curr.t - lo.t;
     if(dur < 120) return;
     const seg = relHist.filter(h => h.t >= lo.t);
