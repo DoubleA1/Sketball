@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shot Detector Calibration</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;background:#0b1422;color:#f3ede2;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;}
+  h1{font-size:22px;margin:0;}
+  p{max-width:640px;line-height:1.5;color:#cfd8e6;font-size:14px;margin:0;}
+  #vidWrap{position:relative;width:min(560px,94vw);}
+  video{width:100%;border-radius:8px;transform:scaleX(-1);background:#000;display:block;}
+  #flash{position:absolute;inset:0;border-radius:8px;pointer-events:none;border:6px solid transparent;}
+  #flash.label{border-color:#F58426;}
+  #flash.detect{box-shadow:inset 0 0 60px #4dff88;}
+  #meter{width:min(560px,94vw);height:14px;background:#13233b;border-radius:7px;overflow:hidden;}
+  #meterFill{height:100%;width:0%;background:#006BB6;transition:width .07s linear;}
+  .stats{display:flex;gap:18px;font-size:15px;flex-wrap:wrap;justify-content:center;}
+  .stats b{color:#F58426;font-size:20px;}
+  button{background:#F58426;color:#14100a;border:none;border-radius:5px;padding:12px 22px;font-size:16px;font-weight:700;cursor:pointer;}
+  button.alt{background:#006BB6;color:#fff;}
+  button:disabled{opacity:.4;cursor:default;}
+  textarea{width:min(640px,94vw);height:160px;background:#0a1320;color:#cfd8e6;border:1px solid #28456b;border-radius:6px;font-size:11px;padding:8px;}
+  #summary{max-width:640px;font-size:14px;line-height:1.6;background:#13233b;border-radius:8px;padding:12px 16px;display:none;white-space:pre-line;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+</style>
+</head>
+<body>
+  <h1>&#127936; Shot Detector Calibration</h1>
+  <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it for you so you can shoot two-handed. Between shots, also spend ~20 seconds doing things that should NOT count: talk, nod, lean, walk across frame &mdash; <b>without</b> pressing space. Then Stop &amp; Analyze, copy the data, and paste it back to Claude.</p>
+  <div id="vidWrap">
+    <video id="cam" autoplay playsinline muted></video>
+    <div id="flash"></div>
+  </div>
+  <div id="meter"><div id="meterFill"></div></div>
+  <div class="stats">
+    <span>Time: <b id="tVal">0s</b></span>
+    <span>Labeled shots (space): <b id="lVal">0</b></span>
+    <span>Detections: <b id="dVal">0</b></span>
+  </div>
+  <div class="row">
+    <button id="camBtn">1. Start camera</button>
+    <button id="recBtn" class="alt" disabled>2. Record</button>
+    <button id="stopBtn" disabled>3. Stop &amp; Analyze</button>
+  </div>
+  <div id="summary"></div>
+  <textarea id="out" placeholder="Recorded data will appear here..." readonly></textarea>
+  <button id="copyBtn" disabled>Copy data to clipboard</button>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const video = $("cam");
+  const PW = 96, PH = 72;
+  const proc = document.createElement("canvas");
+  proc.width = PW; proc.height = PH;
+  const pctx = proc.getContext("2d", { willReadFrequently: true });
+
+  let stream = null, running = false, recording = false;
+  let t0 = 0, prevFrame = null, lastProc = 0, lastShotAt = 0;
+  const hist = [], baseCounts = [];
+  // recorded data
+  let samples = [];     // [dtMs, centroidY(3dp) or -1, movedPixelCount]
+  let labels = [];      // [downMs, upMs]
+  let detections = [];  // {t, rise, dur, avgC, base, pts}
+  let spaceDown = null;
+
+  /* ---- same detector as the live game (v3 thresholds) ---- */
+  function motionBaseline(){
+    if(!baseCounts.length) return 0;
+    const s = baseCounts.slice().sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  }
+  function formScore(rise, durMs, topY, smooth){
+    const durN = Math.max(0, Math.min(1, (durMs - 150) / 750));
+    const extN = Math.max(0, Math.min(1, (0.5 - topY) / 0.4));
+    const smN  = (smooth === undefined) ? 0.5 : smooth;
+    return 10 + Math.round((0.45*durN + 0.25*smN + 0.30*extN) * 8) * 5;
+  }
+  function detectShot(now){
+    if(hist.length < 4) return;
+    if(now - lastShotAt < 850) return;
+    let loIdx = 0;
+    for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
+    if(loIdx >= hist.length - 2) return;
+    let hiIdx = loIdx + 1;
+    for(let i = loIdx + 1; i < hist.length; i++){ if(hist[i].y < hist[hiIdx].y) hiIdx = i; }
+    const lo = hist[loIdx], hi = hist[hiIdx];
+    const rise = lo.y - hi.y, dur = hi.t - lo.t;
+    if(lo.y < 0.38 || rise < 0.10 || dur < 120) return;
+    let cSum = 0, n = 0;
+    for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
+    const avgC = cSum / Math.max(n, 1);
+    const base = motionBaseline();
+    if(avgC < Math.max(50, base * 2.2)) return;
+    lastShotAt = now;
+    const pts = formScore(rise, dur, hi.y);
+    detections.push({ t: Math.round(now - t0), rise: +rise.toFixed(3), dur: Math.round(dur),
+                      avgC: Math.round(avgC), base: Math.round(base), pts });
+    hist.length = 0;
+    $("dVal").textContent = detections.length;
+    flash("detect");
+  }
+
+  function processFrame(now){
+    if(video.readyState < 2) return;
+    pctx.drawImage(video, 0, 0, PW, PH);
+    let cur;
+    try{ cur = pctx.getImageData(0, 0, PW, PH).data; }catch(e){ return; }
+    if(prevFrame){
+      let count = 0, sumY = 0;
+      for(let y = 0; y < PH; y++){
+        for(let x = 0; x < PW; x++){
+          const i = (y * PW + x) * 4;
+          const g1 = (cur[i] + cur[i+1] + cur[i+2]) / 3;
+          const g2 = (prevFrame[i] + prevFrame[i+1] + prevFrame[i+2]) / 3;
+          if(Math.abs(g1 - g2) > 26){ count++; sumY += y; }
+        }
+      }
+      baseCounts.push(count);
+      if(baseCounts.length > 30) baseCounts.shift();
+      const cy = count > 0 ? +((sumY / count) / PH).toFixed(3) : -1;
+      if(recording) samples.push([Math.round(now - t0), cy, count]);
+      if(count > 20) hist.push({ t: now, y: cy, c: count });
+      while(hist.length && now - hist[0].t > 900) hist.shift();
+      detectShot(now);
+      $("meterFill").style.width = Math.min(100, count / 6) + "%";
+    }
+    prevFrame = cur;
+  }
+
+  function loop(ts){
+    if(!running) return;
+    if(ts - lastProc > 66){ lastProc = ts; processFrame(performance.now()); }
+    if(recording) $("tVal").textContent = Math.round((performance.now() - t0) / 1000) + "s";
+    requestAnimationFrame(loop);
+  }
+
+  function flash(kind){
+    const f = $("flash");
+    f.classList.add(kind);
+    setTimeout(() => f.classList.remove(kind), 280);
+  }
+
+  /* ---- labeling with spacebar ---- */
+  document.addEventListener("keydown", e => {
+    if(e.code !== "Space" || !recording) return;
+    e.preventDefault();
+    if(spaceDown === null){ spaceDown = performance.now() - t0; $("flash").classList.add("label"); }
+  });
+  document.addEventListener("keyup", e => {
+    if(e.code !== "Space" || !recording || spaceDown === null) return;
+    e.preventDefault();
+    labels.push([Math.round(spaceDown), Math.round(performance.now() - t0)]);
+    spaceDown = null;
+    $("flash").classList.remove("label");
+    $("lVal").textContent = labels.length;
+  });
+
+  /* ---- controls ---- */
+  $("camBtn").addEventListener("click", async () => {
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:"user", width:{ideal:640}, height:{ideal:480} }, audio:false });
+      video.srcObject = stream;
+      await video.play();
+      running = true;
+      requestAnimationFrame(loop);
+      $("camBtn").disabled = true;
+      $("recBtn").disabled = false;
+    }catch(err){
+      alert("Camera failed: " + (err && err.name ? err.name : err));
+    }
+  });
+
+  $("recBtn").addEventListener("click", () => {
+    samples = []; labels = []; detections = []; spaceDown = null;
+    t0 = performance.now();
+    recording = true;
+    $("lVal").textContent = "0"; $("dVal").textContent = "0";
+    $("recBtn").disabled = true;
+    $("stopBtn").disabled = false;
+    $("summary").style.display = "none";
+    $("out").value = "";
+    $("copyBtn").disabled = true;
+  });
+
+  $("stopBtn").addEventListener("click", () => {
+    recording = false;
+    $("stopBtn").disabled = true;
+    $("recBtn").disabled = false;
+    // analysis: a label window is [spaceDown - 1200ms, spaceUp + 300ms]
+    // (so tapping space right AFTER a shot still captures it)
+    const windows = labels.map(L => [L[0] - 1200, L[1] + 300]);
+    const inWin = t => windows.some(w => t >= w[0] && t <= w[1]);
+    const hits = windows.filter(w => detections.some(d => d.t >= w[0] && d.t <= w[1])).length;
+    const misses = labels.length - hits;
+    const falsePos = detections.filter(d => !inWin(d.t)).length;
+    const durS = samples.length ? Math.round(samples[samples.length-1][0] / 1000) : 0;
+    $("summary").style.display = "block";
+    $("summary").textContent =
+      "Session: " + durS + "s, " + samples.length + " frames\n" +
+      "Real shots labeled: " + labels.length + "\n" +
+      "Detected correctly: " + hits + "  |  MISSED: " + misses + "\n" +
+      "FALSE detections (no shot intended): " + falsePos + "\n" +
+      "Copy the data below and paste it to Claude.";
+    const dump = {
+      v: 3,
+      meta: { durMs: samples.length ? samples[samples.length-1][0] : 0,
+              ua: navigator.userAgent.slice(0, 80) },
+      results: { labeled: labels.length, hits, misses, falsePos },
+      labels, detections, samples
+    };
+    $("out").value = JSON.stringify(dump);
+    $("copyBtn").disabled = false;
+  });
+
+  $("copyBtn").addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText($("out").value);
+      $("copyBtn").textContent = "Copied!";
+      setTimeout(() => $("copyBtn").textContent = "Copy data to clipboard", 1500);
+    }catch(e){
+      $("out").select();
+      document.execCommand("copy");
+    }
+  });
+})();
+</script>
+</body>
+</html>
