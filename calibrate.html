@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shot Detector Calibration</title>
+<title>Shot Detector Calibration v5</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;background:#0b1422;color:#f3ede2;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:14px;}
   h1{font-size:22px;margin:0;}
@@ -13,6 +13,8 @@
   #flash{position:absolute;inset:0;border-radius:8px;pointer-events:none;border:6px solid transparent;}
   #flash.label{border-color:#F58426;}
   #flash.detect{box-shadow:inset 0 0 60px #4dff88;}
+  #modeLine{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#8fa0b8;}
+  #tapBtn{width:min(560px,94vw);padding:16px;font-size:17px;background:#13233b;color:#F58426;border:2px dashed #F58426;border-radius:6px;cursor:pointer;touch-action:none;}
   #meter{width:min(560px,94vw);height:14px;background:#13233b;border-radius:7px;overflow:hidden;}
   #meterFill{height:100%;width:0%;background:#006BB6;transition:width .07s linear;}
   .stats{display:flex;gap:18px;font-size:15px;flex-wrap:wrap;justify-content:center;}
@@ -26,17 +28,18 @@
 </style>
 </head>
 <body>
-  <h1>&#127936; Shot Detector Calibration</h1>
-  <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it for you so you can shoot two-handed. On phones, hold the orange button instead. Between shots, also spend ~20 seconds doing things that should NOT count: talk, nod, lean, walk across frame &mdash; <b>without</b> pressing space. Then Stop &amp; Analyze, copy the data, and paste it back to Claude.</p>
+  <h1>&#127936; Shot Detector Calibration v5</h1>
+  <p><b>How to run a session:</b> Start the camera, hit Record, then do <b>15&ndash;20 real shooting motions</b>, tapping (or holding) <b>SPACEBAR right as you finish each shot</b> &mdash; or have someone press it so you shoot two-handed. On phones, hold the orange button instead. Between shots, spend ~20s doing things that should NOT count: talk, nod, walk, even shake the camera &mdash; <b>without</b> labeling. Then Stop &amp; Analyze, copy, and paste the data to Claude.</p>
+  <div id="modeLine">Tracking mode: loading&hellip;</div>
   <div id="vidWrap">
     <video id="cam" autoplay playsinline muted></video>
     <div id="flash"></div>
   </div>
-  <button id="tapBtn" style="width:min(560px,94vw);padding:16px;font-size:17px;background:#13233b;color:#F58426;border:2px dashed #F58426;">&#128073; On a phone? HOLD this button during/right after each shot (= spacebar)</button>
+  <button id="tapBtn">&#128073; On a phone? HOLD this during/right after each shot (= spacebar)</button>
   <div id="meter"><div id="meterFill"></div></div>
   <div class="stats">
     <span>Time: <b id="tVal">0s</b></span>
-    <span>Labeled shots (space): <b id="lVal">0</b></span>
+    <span>Labeled shots: <b id="lVal">0</b></span>
     <span>Detections: <b id="dVal">0</b></span>
   </div>
   <div class="row">
@@ -48,6 +51,23 @@
   <textarea id="out" placeholder="Recorded data will appear here..." readonly></textarea>
   <button id="copyBtn" disabled>Copy data to clipboard</button>
 
+<script type="module">
+  try{
+    const mp = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+    const files = await mp.FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    const opts = delegate => ({
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate
+      },
+      runningMode: "VIDEO",
+      numPoses: 1
+    });
+    try{ window.poseLandmarker = await mp.PoseLandmarker.createFromOptions(files, opts("GPU")); }
+    catch(e){ window.poseLandmarker = await mp.PoseLandmarker.createFromOptions(files, opts("CPU")); }
+  }catch(e){ console.warn("Pose unavailable:", e); }
+</script>
 <script>
 (function(){
   "use strict";
@@ -60,55 +80,66 @@
 
   let stream = null, running = false, recording = false;
   let t0 = 0, prevFrame = null, lastProc = 0, lastShotAt = 0;
-  const hist = [], baseCounts = [];
-  // recorded data
-  let samples = [];     // [dtMs, centroidY(3dp) or -1, movedPixelCount]
-  let labels = [];      // [downMs, upMs]
-  let detections = [];  // {t, rise, dur, avgC, base, pts}
+  const hist = [], relHist = [];
+  let poseSamples = [], motionSamples = [], labels = [], detections = [];
   let spaceDown = null;
 
-  /* ---- same detector as the live game (v4, tuned on labeled data) ---- */
-  function noiseFloor(){
-    if(!baseCounts.length) return 0;
-    const s = baseCounts.slice().sort((a, b) => a - b);
-    return s[Math.floor(s.length / 4)];
-  }
-  function formScore(rise, durMs, topY, smooth){
-    const durN = Math.max(0, Math.min(1, (durMs - 150) / 750));
-    const extN = Math.max(0, Math.min(1, (0.5 - topY) / 0.4));
-    const smN  = (smooth === undefined) ? 0.5 : smooth;
-    return 10 + Math.round((0.45*durN + 0.25*smN + 0.30*extN) * 8) * 5;
-  }
-  function detectShot(now){
-    if(hist.length < 3) return;
-    if(now - lastShotAt < 800) return;
-    const curr = hist[hist.length - 1];
-    if(curr.t !== now) return;
-    if(curr.y > 0.50) return;
-    let lo = null, loIdx = 0;
-    for(let i = 0; i < hist.length - 1; i++){
-      if(!lo || hist[i].y > lo.y){ lo = hist[i]; loIdx = i; }
-    }
-    if(!lo || lo.y < 0.55) return;
-    const rise = lo.y - curr.y;
-    if(rise < 0.20) return;
-    const dur = curr.t - lo.t;
-    if(dur < 100) return;
-    let cSum = 0, n = 0;
-    for(let i = loIdx; i < hist.length; i++){ cSum += hist[i].c; n++; }
-    const avgC = cSum / Math.max(n, 1);
-    if(avgC < 85) return;
-    lastShotAt = now;
-    const pts = formScore(rise, dur, curr.y);
-    detections.push({ t: Math.round(now - t0), rise: +rise.toFixed(3), dur: Math.round(dur),
-                      avgC: Math.round(avgC), base: noiseFloor(), pts });
-    hist.length = 0;
+  function modeName(){ return window.poseLandmarker ? "pose" : "motion"; }
+  setInterval(() => {
+    $("modeLine").textContent = "Tracking mode: " +
+      (window.poseLandmarker ? "AI POSE (skeleton)" : "MOTION fallback" +
+       (running ? "" : " (pose may still be loading)"));
+  }, 800);
+
+  function fire(method, info){
+    lastShotAt = performance.now();
+    detections.push(Object.assign({ t: Math.round(performance.now() - t0), method }, info));
     $("dVal").textContent = detections.length;
     flash("detect");
   }
 
-  function processFrame(now){
-    if(video.readyState < 2) return;
+  /* ---------- pose pipeline (mirrors the game) ---------- */
+  function poseFrame(now){
+    let res;
+    try{ res = window.poseLandmarker.detectForVideo(video, now); }
+    catch(e){ pixelFrame(now); return; }
+    const lm = res && res.landmarks && res.landmarks[0];
+    if(!lm) return;
+    const Ls = lm[11], Rs = lm[12], Lw = lm[15], Rw = lm[16];
+    const vis = p => p && (p.visibility === undefined || p.visibility > 0.4);
+    if(!vis(Ls) || !vis(Rs) || !(vis(Lw) || vis(Rw))) return;
+    const shoulderY = (Ls.y + Rs.y) / 2;
+    let wristY;
+    if(vis(Lw) && vis(Rw)) wristY = Math.min(Lw.y, Rw.y);
+    else wristY = vis(Lw) ? Lw.y : Rw.y;
+    const rel = shoulderY - wristY;
+    if(recording) poseSamples.push([Math.round(now - t0), +rel.toFixed(3), +wristY.toFixed(3), +shoulderY.toFixed(3)]);
+    relHist.push({ t: now, rel, wy: wristY });
+    while(relHist.length && now - relHist[0].t > 1000) relHist.shift();
+    $("meterFill").style.width = Math.max(0, Math.min(100, (rel + 0.3) / 0.6 * 100)) + "%";
+    detectPoseShot(now);
+  }
+  function detectPoseShot(now){
+    if(relHist.length < 3) return;
+    if(now - lastShotAt < 800) return;
+    const curr = relHist[relHist.length - 1];
+    if(curr.t !== now) return;
+    if(curr.rel < 0.10) return;
+    let lo = null;
+    for(let i = 0; i < relHist.length - 1; i++){
+      if(!lo || relHist[i].rel < lo.rel) lo = relHist[i];
+    }
+    if(!lo || lo.rel > -0.02) return;
+    const rise = curr.rel - lo.rel;
+    if(rise < 0.18) return;
+    const dur = curr.t - lo.t;
+    if(dur < 120) return;
+    fire("pose", { rise: +rise.toFixed(3), dur: Math.round(dur), wy: +curr.wy.toFixed(3) });
+    relHist.length = 0;
+  }
+
+  /* ---------- motion fallback pipeline (game v2 + shake guard) ---------- */
+  function pixelFrame(now){
     pctx.drawImage(video, 0, 0, PW, PH);
     let cur;
     try{ cur = pctx.getImageData(0, 0, PW, PH).data; }catch(e){ return; }
@@ -122,21 +153,48 @@
           if(Math.abs(g1 - g2) > 26){ count++; sumY += y; }
         }
       }
-      baseCounts.push(count);
-      if(baseCounts.length > 60) baseCounts.shift();
       const cy = count > 0 ? +((sumY / count) / PH).toFixed(3) : -1;
-      if(recording) samples.push([Math.round(now - t0), cy, count]);
-      if(count > Math.max(15, noiseFloor() * 1.2)) hist.push({ t: now, y: cy, c: count });
-      while(hist.length && now - hist[0].t > 850) hist.shift();
-      detectShot(now);
+      if(recording) motionSamples.push([Math.round(now - t0), cy, count]);
       $("meterFill").style.width = Math.min(100, count / 6) + "%";
+      if(count > PW * PH * 0.18){
+        hist.length = 0;
+      }else{
+        if(count > 25) hist.push({ t: now, y: cy, c: count });
+        while(hist.length && now - hist[0].t > 900) hist.shift();
+        detectMotionShot(now);
+      }
     }
     prevFrame = cur;
+  }
+  function detectMotionShot(now){
+    if(hist.length < 4) return;
+    if(now - lastShotAt < 950) return;
+    let loIdx = 0;
+    for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
+    if(loIdx >= hist.length - 2) return;
+    let hiIdx = loIdx + 1;
+    for(let i = loIdx + 1; i < hist.length; i++){ if(hist[i].y < hist[hiIdx].y) hiIdx = i; }
+    const lo = hist[loIdx], hi = hist[hiIdx];
+    const rise = lo.y - hi.y, dur = hi.t - lo.t;
+    if(lo.y < 0.42 || rise < 0.12 || dur < 120) return;
+    let cSum = 0, n = 0;
+    for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
+    const avgC = cSum / Math.max(n, 1);
+    if(avgC < 70) return;
+    fire("motion", { rise: +rise.toFixed(3), dur: Math.round(dur), avgC: Math.round(avgC) });
+    hist.length = 0;
   }
 
   function loop(ts){
     if(!running) return;
-    if(ts - lastProc > 66){ lastProc = ts; processFrame(performance.now()); }
+    if(ts - lastProc > 66){
+      lastProc = ts;
+      const now = performance.now();
+      if(video.readyState >= 2){
+        if(window.poseLandmarker) poseFrame(now);
+        else pixelFrame(now);
+      }
+    }
     if(recording) $("tVal").textContent = Math.round((performance.now() - t0) / 1000) + "s";
     requestAnimationFrame(loop);
   }
@@ -147,22 +205,7 @@
     setTimeout(() => f.classList.remove(kind), 280);
   }
 
-  /* ---- labeling with spacebar ---- */
-  document.addEventListener("keydown", e => {
-    if(e.code !== "Space" || !recording) return;
-    e.preventDefault();
-    if(spaceDown === null){ spaceDown = performance.now() - t0; $("flash").classList.add("label"); }
-  });
-  document.addEventListener("keyup", e => {
-    if(e.code !== "Space" || !recording || spaceDown === null) return;
-    e.preventDefault();
-    labels.push([Math.round(spaceDown), Math.round(performance.now() - t0)]);
-    spaceDown = null;
-    $("flash").classList.remove("label");
-    $("lVal").textContent = labels.length;
-  });
-
-  // mobile label button = spacebar equivalent
+  /* ---------- labeling: spacebar or hold-button ---------- */
   function labelDown(){
     if(!recording || spaceDown !== null) return;
     spaceDown = performance.now() - t0;
@@ -175,11 +218,13 @@
     $("flash").classList.remove("label");
     $("lVal").textContent = labels.length;
   }
+  document.addEventListener("keydown", e => { if(e.code === "Space"){ e.preventDefault(); labelDown(); } });
+  document.addEventListener("keyup",   e => { if(e.code === "Space"){ e.preventDefault(); labelUp(); } });
   $("tapBtn").addEventListener("pointerdown", e => { e.preventDefault(); labelDown(); });
   $("tapBtn").addEventListener("pointerup",   e => { e.preventDefault(); labelUp(); });
   $("tapBtn").addEventListener("pointercancel", () => labelUp());
 
-  /* ---- controls ---- */
+  /* ---------- controls ---------- */
   $("camBtn").addEventListener("click", async () => {
     try{
       stream = await navigator.mediaDevices.getUserMedia({
@@ -196,7 +241,7 @@
   });
 
   $("recBtn").addEventListener("click", () => {
-    samples = []; labels = []; detections = []; spaceDown = null;
+    poseSamples = []; motionSamples = []; labels = []; detections = []; spaceDown = null;
     t0 = performance.now();
     recording = true;
     $("lVal").textContent = "0"; $("dVal").textContent = "0";
@@ -211,27 +256,27 @@
     recording = false;
     $("stopBtn").disabled = true;
     $("recBtn").disabled = false;
-    // analysis: a label window is [spaceDown - 1200ms, spaceUp + 300ms]
-    // (so tapping space right AFTER a shot still captures it)
     const windows = labels.map(L => [L[0] - 1200, L[1] + 300]);
     const inWin = t => windows.some(w => t >= w[0] && t <= w[1]);
     const hits = windows.filter(w => detections.some(d => d.t >= w[0] && d.t <= w[1])).length;
     const misses = labels.length - hits;
     const falsePos = detections.filter(d => !inWin(d.t)).length;
-    const durS = samples.length ? Math.round(samples[samples.length-1][0] / 1000) : 0;
+    const dur = Math.max(
+      poseSamples.length ? poseSamples[poseSamples.length-1][0] : 0,
+      motionSamples.length ? motionSamples[motionSamples.length-1][0] : 0);
     $("summary").style.display = "block";
     $("summary").textContent =
-      "Session: " + durS + "s, " + samples.length + " frames\n" +
+      "Mode: " + modeName().toUpperCase() + "  |  Session: " + Math.round(dur/1000) + "s\n" +
       "Real shots labeled: " + labels.length + "\n" +
       "Detected correctly: " + hits + "  |  MISSED: " + misses + "\n" +
-      "FALSE detections (no shot intended): " + falsePos + "\n" +
+      "FALSE detections: " + falsePos + "\n" +
       "Copy the data below and paste it to Claude.";
     const dump = {
-      v: 4,
-      meta: { durMs: samples.length ? samples[samples.length-1][0] : 0,
-              ua: navigator.userAgent.slice(0, 80) },
+      v: 5,
+      meta: { mode: modeName(), durMs: dur, ua: navigator.userAgent.slice(0, 80) },
       results: { labeled: labels.length, hits, misses, falsePos },
-      labels, detections, samples
+      labels, detections,
+      poseSamples, motionSamples
     };
     $("out").value = JSON.stringify(dump);
     $("copyBtn").disabled = false;

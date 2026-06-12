@@ -180,6 +180,11 @@
     color:#fff;font-size:20px;line-height:1;padding:8px 11px;
   }
   #muteBtn:focus-visible{outline:3px solid #fff;outline-offset:2px;}
+  #modeTag{
+    position:absolute;bottom:9%;left:14px;z-index:31;pointer-events:none;
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8fa0b8;
+    background:rgba(11,20,34,.72);padding:6px 10px;border-radius:5px;
+  }
 
   /* ---------- WEMBY ---------- */
   #wemby{position:absolute;top:8%;left:-340px;width:300px;z-index:26;pointer-events:none;}
@@ -297,6 +302,7 @@
 
       <div id="hint">Take your first shot to start the clock</div>
       <button id="muteBtn" aria-label="Mute sound">&#128266;</button>
+      <div id="modeTag"></div>
 
       <!-- Hoop -->
       <div id="hoopWrap">
@@ -398,6 +404,32 @@
     }
   }
 </script>
+<script type="module">
+  /* ============================================================
+     MEDIAPIPE POSE TRACKING (primary shot detector)
+     Loads in the background while the player reads the intro.
+     If anything fails (blocked CDN, ancient device), the game
+     silently falls back to motion detection.
+     ============================================================ */
+  try{
+    const mp = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+    const files = await mp.FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    const opts = delegate => ({
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate
+      },
+      runningMode: "VIDEO",
+      numPoses: 1
+    });
+    try{ window.poseLandmarker = await mp.PoseLandmarker.createFromOptions(files, opts("GPU")); }
+    catch(e){ window.poseLandmarker = await mp.PoseLandmarker.createFromOptions(files, opts("CPU")); }
+    console.log("Pose tracking ready");
+  }catch(e){
+    console.warn("Pose tracking unavailable - using motion-detection fallback.", e);
+  }
+</script>
 <script>
 (function(){
   "use strict";
@@ -420,7 +452,6 @@
   let lastEntry = null;
   let prevFrame = null;
   const hist = [];        // motion centroid history
-  const baseCounts = [];  // rolling motion level, for adaptive thresholds
 
   // bonus rounds: all +20s now; each needs a faster scoring pace than the last
   const BONUS = [
@@ -749,8 +780,75 @@
     requestAnimationFrame(loop);
   }
 
+  let modeShown = "";
+  function setModeTag(){
+    const m = window.poseLandmarker ? "AI pose tracking" : "basic motion tracking";
+    if(m !== modeShown){ modeShown = m; $("modeTag").textContent = m; }
+  }
+
   function processFrame(now){
     if(video.readyState < 2) return;
+    setModeTag();
+    if(window.poseLandmarker){ poseFrame(now); }
+    else { pixelFrame(now); }
+  }
+
+  /* ---------- PRIMARY: skeleton tracking ---------- */
+  const relHist = []; // wrist height relative to shoulders, over time
+  function poseFrame(now){
+    let res;
+    try{ res = window.poseLandmarker.detectForVideo(video, now); }
+    catch(e){ pixelFrame(now); return; }
+    const lm = res && res.landmarks && res.landmarks[0];
+    if(!lm) return;
+    const Ls = lm[11], Rs = lm[12], Lw = lm[15], Rw = lm[16];
+    const vis = p => p && (p.visibility === undefined || p.visibility > 0.4);
+    if(!vis(Ls) || !vis(Rs) || !(vis(Lw) || vis(Rw))) return;
+    const shoulderY = (Ls.y + Rs.y) / 2;
+    let wristY;
+    if(vis(Lw) && vis(Rw)) wristY = Math.min(Lw.y, Rw.y); // the higher hand
+    else wristY = vis(Lw) ? Lw.y : Rw.y;
+    // measuring wrists RELATIVE to shoulders makes this immune to camera
+    // shake and walking: when the camera moves, both move together
+    const rel = shoulderY - wristY; // positive = wrists above shoulders
+    relHist.push({ t: now, rel: rel, wy: wristY });
+    while(relHist.length && now - relHist[0].t > 1000) relHist.shift();
+    detectPoseShot(now);
+  }
+
+  function detectPoseShot(now){
+    if(relHist.length < 3) return;
+    if(now - lastShotAt < 800) return;
+    const curr = relHist[relHist.length - 1];
+    if(curr.t !== now) return;
+    if(curr.rel < 0.10) return;       // wrists must be clearly ABOVE shoulders now
+    let lo = null;
+    for(let i = 0; i < relHist.length - 1; i++){
+      if(!lo || relHist[i].rel < lo.rel) lo = relHist[i];
+    }
+    if(!lo || lo.rel > -0.02) return; // swing must have started with hands DOWN
+    const rise = curr.rel - lo.rel;
+    if(rise < 0.18) return;           // a real lift, not a twitch
+    const dur = curr.t - lo.t;
+    if(dur < 120) return;
+    const seg = relHist.filter(h => h.t >= lo.t);
+    const vels = [];
+    for(let i = 1; i < seg.length; i++){
+      const dt = (seg[i].t - seg[i-1].t) || 1;
+      vels.push((seg[i].rel - seg[i-1].rel) / dt * 1000);
+    }
+    let smooth = 0.5;
+    if(vels.length > 1){
+      const mean = vels.reduce((a,b)=>a+b,0) / vels.length;
+      const sd = Math.sqrt(vels.reduce((a,v)=>a+(v-mean)*(v-mean),0) / vels.length);
+      smooth = Math.max(0, Math.min(1, 1 - sd / (Math.abs(mean) + 0.001) * 0.5));
+    }
+    registerShot(rise, dur, curr.wy, smooth);
+    relHist.length = 0;
+  }
+
+  /* ---------- FALLBACK: frame-difference motion (the proven v2) ---------- */
+  function pixelFrame(now){
     pctx.drawImage(video, 0, 0, PW, PH);
     let cur;
     try{ cur = pctx.getImageData(0, 0, PW, PH).data; }
@@ -765,50 +863,40 @@
           if(Math.abs(g1 - g2) > 26){ count++; sumY += y; }
         }
       }
-      // rolling noise floor (25th percentile of last ~4s) - adapts to device
-      // sensor noise WITHOUT rising during continuous play like a median would
-      baseCounts.push(count);
-      if(baseCounts.length > 60) baseCounts.shift();
-      if(count > Math.max(15, noiseFloor() * 1.2)){
-        hist.push({ t: now, y: (sumY / count) / PH, c: count });
+      if(count > PW * PH * 0.18){
+        // >18% of the whole image changed = camera shake or scene cut,
+        // not a human movement; discard and start fresh
+        hist.length = 0;
+      }else{
+        if(count > 25){
+          hist.push({ t: now, y: (sumY / count) / PH, c: count });
+        }
+        while(hist.length && now - hist[0].t > 900) hist.shift();
+        detectMotionShot(now);
       }
-      while(hist.length && now - hist[0].t > 850) hist.shift();
-      detectShot(now);
     }
     prevFrame = cur;
   }
 
-  function noiseFloor(){
-    if(!baseCounts.length) return 0;
-    const s = baseCounts.slice().sort((a, b) => a - b);
-    return s[Math.floor(s.length / 4)];
-  }
-
-  // Peak-trigger detector, tuned on real labeled shot data (v4):
-  // fires the moment the motion centroid arrives HIGH after starting LOW.
-  // Calibration result: 29/30 real shots detected, 0 false positives
-  // (face/talking/walking never starts low AND travels 20%+ of the frame).
-  function detectShot(now){
-    if(hist.length < 3) return;
-    if(now - lastShotAt < 800) return;
-    const curr = hist[hist.length - 1];
-    if(curr.t !== now) return;     // only judge frames that just produced motion
-    if(curr.y > 0.50) return;      // arms must be HIGH right now
-    let lo = null, loIdx = 0;
-    for(let i = 0; i < hist.length - 1; i++){
-      if(!lo || hist[i].y > lo.y){ lo = hist[i]; loIdx = i; }
-    }
-    if(!lo || lo.y < 0.55) return; // swing must have STARTED low
-    const rise = lo.y - curr.y;
-    if(rise < 0.20) return;        // and traveled at least 20% of the frame
-    const dur = curr.t - lo.t;
-    if(dur < 100) return;
+  function detectMotionShot(now){
+    if(hist.length < 4) return;
+    if(now - lastShotAt < 950) return;
+    let loIdx = 0;
+    for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
+    if(loIdx >= hist.length - 2) return;
+    let hiIdx = loIdx + 1;
+    for(let i = loIdx + 1; i < hist.length; i++){ if(hist[i].y < hist[hiIdx].y) hiIdx = i; }
+    const lo = hist[loIdx], hi = hist[hiIdx];
+    const rise = lo.y - hi.y;
+    const dur = hi.t - lo.t;
+    if(lo.y < 0.42) return;
+    if(rise < 0.12) return;
+    if(dur < 120) return;
     let cSum = 0, n = 0;
-    for(let i = loIdx; i < hist.length; i++){ cSum += hist[i].c; n++; }
-    if(cSum / Math.max(n, 1) < 85) return; // big body motion, not a small blob
-
+    for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
+    if(cSum / Math.max(n, 1) < 70) return;
     const vels = [];
-    for(let i = loIdx + 1; i < hist.length; i++){
+    for(let i = loIdx + 1; i <= hiIdx; i++){
       const dt = (hist[i].t - hist[i-1].t) || 1;
       vels.push((hist[i-1].y - hist[i].y) / dt * 1000);
     }
@@ -818,7 +906,7 @@
       const sd = Math.sqrt(vels.reduce((a,v)=>a+(v-mean)*(v-mean),0) / vels.length);
       smooth = Math.max(0, Math.min(1, 1 - sd / (Math.abs(mean) + 0.001) * 0.5));
     }
-    registerShot(rise, dur, curr.y, smooth);
+    registerShot(rise, dur, hi.y, smooth);
     hist.length = 0;
   }
 
@@ -959,7 +1047,7 @@
   function resetGame(){
     timeLeft = INIT_TIME; totalElapsed = 0; score = 0; shots = 0; blocks = 0; bestShot = 0;
     scoreAtHalf = 0; bonusRound = 0; goal = 0; goalActive = false;
-    hist.length = 0; baseCounts.length = 0; prevFrame = null; lastShotAt = 0;
+    hist.length = 0; relHist.length = 0; prevFrame = null; lastShotAt = 0;
     wembyArmed = false; wembyFlying = false;
     clearMult();
     $("scoreVal").textContent = "0";
