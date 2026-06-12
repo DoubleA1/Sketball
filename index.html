@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Garden Shootout — 60 Second Challenge</title>
+<title>Garden Shootout — 30 Second Challenge</title>
 <style>
   :root{
     --knicks-blue:#006BB6;
@@ -21,27 +21,24 @@
     font-family:"Avenir Next Condensed","Arial Narrow",Impact,"Helvetica Neue",Arial,sans-serif;
     overflow:hidden;
   }
-  #app{position:relative;height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;}
+  #app{position:relative;width:100vw;height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;}
 
   /* ---------- screens ---------- */
-  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;text-align:center;overflow-y:auto;}
   .hidden{display:none !important;}
 
   .eyebrow{letter-spacing:.35em;font-size:13px;color:var(--knicks-orange);text-transform:uppercase;}
   h1{
-    font-size:clamp(44px,8vw,92px);
-    line-height:.95;
-    text-transform:uppercase;
-    letter-spacing:.02em;
-    color:#fff;
+    font-size:clamp(40px,8vw,92px);
+    line-height:.95;text-transform:uppercase;letter-spacing:.02em;color:#fff;
     text-shadow:4px 4px 0 var(--knicks-blue), 8px 8px 0 rgba(245,132,38,.45);
   }
-  .sub{max-width:560px;font-family:Georgia,serif;font-size:17px;line-height:1.5;color:#cfd8e6;}
+  .sub{max-width:560px;font-family:Georgia,serif;font-size:16px;line-height:1.5;color:#cfd8e6;}
   .btn{
     appearance:none;border:none;cursor:pointer;
     background:var(--knicks-orange);color:#14100a;
     font-family:inherit;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
-    font-size:18px;padding:16px 36px;border-radius:4px;
+    font-size:18px;padding:15px 34px;border-radius:4px;
     box-shadow:0 6px 0 #a8500f;
     transition:transform .08s ease, box-shadow .08s ease;
   }
@@ -52,9 +49,19 @@
   .btn.blue:hover{box-shadow:0 8px 0 #033f6b;}
   .note{font-size:13px;color:#8fa0b8;font-family:Georgia,serif;font-style:italic;}
   .err{color:#ff9d6e;font-family:Georgia,serif;max-width:520px;line-height:1.5;}
+  .linkish{background:none;border:none;color:#8fa0b8;font-family:Georgia,serif;font-style:italic;font-size:13px;text-decoration:underline;cursor:pointer;margin-top:10px;}
+
+  #introTown{margin-top:4px;}
+  #introTown input{
+    background:#0a1320;border:2px solid #28456b;border-radius:4px;
+    color:#fff;font-family:Georgia,serif;font-size:17px;padding:11px 14px;
+    width:min(320px,80vw);text-align:center;
+  }
+  #introTown input:focus{outline:none;border-color:var(--knicks-orange);}
+  #introTown label{display:block;font-size:12px;letter-spacing:.25em;text-transform:uppercase;color:var(--knicks-orange);margin-bottom:6px;}
 
   /* ---------- game stage ---------- */
-  #gameScreen{justify-content:flex-start;padding:0;}
+  #gameScreen{justify-content:flex-start;padding:0;overflow:hidden;}
   #stage{position:relative;width:100%;height:100%;background:#000;overflow:hidden;}
   #cam{
     position:absolute;inset:0;width:100%;height:100%;
@@ -72,45 +79,37 @@
     border-top:4px solid var(--knicks-orange);opacity:.9;}
 
   /* HUD */
-  #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;pointer-events:none;z-index:30;gap:12px;}
-  .hudBox{background:rgba(11,20,34,.82);border:2px solid var(--knicks-blue);border-radius:6px;padding:8px 18px;min-width:120px;}
-  .hudLabel{font-size:11px;letter-spacing:.3em;color:var(--knicks-orange);text-transform:uppercase;}
-  .hudVal{font-size:40px;font-weight:800;color:#fff;line-height:1;font-variant-numeric:tabular-nums;}
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;pointer-events:none;z-index:30;gap:10px;}
+  .hudBox{background:rgba(11,20,34,.85);border:2px solid var(--knicks-blue);border-radius:6px;padding:7px 16px;min-width:108px;}
+  .hudLabel{font-size:10px;letter-spacing:.3em;color:var(--knicks-orange);text-transform:uppercase;}
+  .hudVal{font-size:36px;font-weight:800;color:#fff;line-height:1;font-variant-numeric:tabular-nums;}
   #clockBox.urgent .hudVal{color:#ff5c33;animation:pulse .5s infinite alternate;}
-  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.12)}}
-  #goalPill{
-    align-self:center;background:rgba(245,132,38,.92);color:#1c0e02;
-    border-radius:999px;padding:8px 20px;font-weight:800;letter-spacing:.08em;
-    text-transform:uppercase;font-size:16px;box-shadow:0 4px 14px rgba(0,0,0,.5);
-  }
+  @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.1)}}
   #hint{
     position:absolute;bottom:9%;left:50%;transform:translateX(-50%);
     background:rgba(11,20,34,.85);border:2px dashed var(--knicks-orange);
-    padding:10px 22px;border-radius:6px;font-size:16px;letter-spacing:.08em;text-transform:uppercase;
-    z-index:30;pointer-events:none;
+    padding:10px 20px;border-radius:6px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;
+    z-index:30;pointer-events:none;max-width:92vw;
   }
 
-  /* bonus notice banner */
-  .notice{
-    position:absolute;top:17%;left:50%;transform:translateX(-50%);
-    z-index:42;pointer-events:none;
-    background:rgba(11,20,34,.92);border:3px solid var(--knicks-orange);
-    border-radius:8px;padding:14px 28px;
-    font-size:clamp(20px,3.4vw,32px);font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-    color:#fff;white-space:nowrap;
-    animation:noticeAnim 4s ease forwards;
+  /* bonus-time goal bar: the ONE thing to read at a glance */
+  #goalBar{
+    position:absolute;top:92px;left:50%;transform:translateX(-50%);
+    z-index:33;pointer-events:none;white-space:nowrap;
+    background:var(--knicks-orange);color:#14100a;
+    font-weight:900;letter-spacing:.05em;text-transform:uppercase;
+    font-size:clamp(18px,3.4vw,32px);
+    padding:10px 26px;border-radius:8px;
+    box-shadow:0 6px 22px rgba(0,0,0,.55);
+    animation:goalPulse .9s infinite alternate;
   }
-  .notice b{color:var(--knicks-orange);}
-  @keyframes noticeAnim{
-    0%{opacity:0;transform:translateX(-50%) scale(.7);}
-    8%{opacity:1;transform:translateX(-50%) scale(1.05);}
-    14%{transform:translateX(-50%) scale(1);}
-    85%{opacity:1;}
-    100%{opacity:0;transform:translateX(-50%) translateY(-20px);}
+  @keyframes goalPulse{
+    from{transform:translateX(-50%) scale(1);}
+    to{transform:translateX(-50%) scale(1.06);}
   }
 
   /* hoop */
-  #hoopWrap{position:absolute;top:6%;right:5%;width:200px;z-index:20;pointer-events:none;}
+  #hoopWrap{position:absolute;top:6%;right:4%;width:180px;z-index:20;pointer-events:none;}
   #net{transform-origin:50% 0;}
   .netShake{animation:netShake .6s ease;}
   @keyframes netShake{
@@ -131,7 +130,7 @@
   /* floating score popups */
   .pop{
     position:absolute;z-index:40;pointer-events:none;
-    font-size:46px;font-weight:900;letter-spacing:.04em;
+    font-size:44px;font-weight:900;letter-spacing:.04em;
     color:var(--knicks-orange);
     -webkit-text-stroke:2px #1c0e02;
     text-shadow:0 3px 0 rgba(0,0,0,.45);
@@ -139,7 +138,7 @@
     white-space:nowrap;
   }
   .pop.swish{color:#7bffb0;}
-  .pop.block{color:#ff5c5c;font-size:40px;}
+  .pop.block{color:#ff5c5c;font-size:38px;}
   @keyframes popFloat{
     0%{opacity:0;transform:translate(0,10px) scale(.6) rotate(-4deg);}
     15%{opacity:1;transform:translate(6px,-14px) scale(1.15) rotate(2deg);}
@@ -147,7 +146,7 @@
   }
   .callout{
     position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);
-    z-index:41;pointer-events:none;font-size:64px;font-weight:900;text-transform:uppercase;
+    z-index:41;pointer-events:none;font-size:58px;font-weight:900;text-transform:uppercase;
     color:#fff;-webkit-text-stroke:3px var(--knicks-blue);
     animation:callout .9s ease forwards;white-space:nowrap;
   }
@@ -175,16 +174,16 @@
 
   /* ---------- mute button ---------- */
   #muteBtn{
-    position:absolute;bottom:9%;right:18px;z-index:31;pointer-events:auto;
+    position:absolute;bottom:9%;right:14px;z-index:31;pointer-events:auto;
     appearance:none;cursor:pointer;
     background:rgba(11,20,34,.85);border:2px solid var(--knicks-blue);border-radius:6px;
-    color:#fff;font-size:22px;line-height:1;padding:8px 12px;
+    color:#fff;font-size:20px;line-height:1;padding:8px 11px;
   }
   #muteBtn:focus-visible{outline:3px solid #fff;outline-offset:2px;}
 
   /* ---------- WEMBY ---------- */
   #wemby{position:absolute;top:8%;left:-340px;width:300px;z-index:26;pointer-events:none;}
-  #wemby.fly{animation:wembyFly 2.3s linear forwards;}
+  #wemby.fly{animation:wembyFly 2.9s linear forwards;}
   @keyframes wembyFly{
     from{transform:translateX(0) rotate(-4deg);}
     to{transform:translateX(calc(100vw + 700px)) rotate(4deg);}
@@ -196,54 +195,73 @@
   @keyframes armWaveL{from{transform:rotate(-7deg)}to{transform:rotate(9deg)}}
   @keyframes armWaveR{from{transform:rotate(8deg)}to{transform:rotate(-6deg)}}
 
-  /* ---------- forms / leaderboard ---------- */
+  /* ---------- end screen: form + live leaderboard side by side ---------- */
   .panel{
     background:linear-gradient(160deg,#10203a, #0b1422);
     border:3px solid var(--knicks-blue);
     border-top:6px solid var(--knicks-orange);
-    border-radius:10px;padding:32px 36px;max-width:620px;width:min(620px,94vw);
+    border-radius:10px;padding:26px 30px;
     box-shadow:0 24px 60px rgba(0,0,0,.6);
-    max-height:92vh;overflow-y:auto;
+    max-height:94vh;max-height:94dvh;overflow-y:auto;
   }
-  .panel h2{font-size:34px;text-transform:uppercase;color:#fff;letter-spacing:.04em;margin-bottom:4px;}
-  .finalScore{font-size:64px;font-weight:900;color:var(--knicks-orange);line-height:1;}
-  .field{text-align:left;margin-top:16px;}
-  .field label{display:block;font-size:12px;letter-spacing:.25em;text-transform:uppercase;color:var(--knicks-orange);margin-bottom:6px;}
+  .panel.wide{width:min(980px,96vw);}
+  .panel h2{font-size:30px;text-transform:uppercase;color:#fff;letter-spacing:.04em;margin-bottom:2px;}
+  .panel h3{font-size:20px;text-transform:uppercase;color:#fff;letter-spacing:.06em;}
+  .panel h3 small{font-size:12px;color:#7e93b3;letter-spacing:.15em;font-weight:400;}
+  .finalScore{font-size:56px;font-weight:900;color:var(--knicks-orange);line-height:1;}
+  .endGrid{display:grid;grid-template-columns:1fr 1.1fr;gap:26px;text-align:left;}
+  .field{text-align:left;margin-top:13px;}
+  .field label{display:block;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--knicks-orange);margin-bottom:5px;}
   .field input,.field textarea{
     width:100%;background:#0a1320;border:2px solid #28456b;border-radius:4px;
-    color:#fff;font-family:Georgia,serif;font-size:16px;padding:11px 12px;
+    color:#fff;font-family:Georgia,serif;font-size:15px;padding:10px 11px;
   }
   .field input:focus,.field textarea:focus{outline:none;border-color:var(--knicks-orange);}
-  .field textarea{resize:vertical;min-height:70px;}
-  .panel .btn{display:block;margin:26px auto 0;}
-  .panel .note{display:block;margin-top:14px;line-height:1.5;}
+  .field textarea{resize:vertical;min-height:60px;}
+  #endLeft .btn{display:block;margin:20px auto 0;}
+  #endLeft .note{display:block;margin-top:12px;line-height:1.5;text-align:center;}
 
-  table.board{width:100%;border-collapse:collapse;margin-top:14px;font-variant-numeric:tabular-nums;}
-  .board th{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:#7e93b3;text-align:left;padding:6px 8px;border-bottom:2px solid #28456b;}
-  .board td{padding:9px 8px;border-bottom:1px solid #1a2c47;font-size:16px;text-align:left;}
-  .board td.rank{color:#7e93b3;width:44px;}
-  .board td.pts{font-weight:800;color:var(--knicks-orange);text-align:right;}
-  .board tr.you td{background:rgba(245,132,38,.16);}
-  .board tr.you td:first-child{border-left:4px solid var(--knicks-orange);}
-  .board .msg{display:block;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#9fb1c9;}
-  .slotLabel{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#7e93b3;margin-top:20px;text-align:left;}
+  .slotLabel{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#7e93b3;margin:16px 0 4px;}
+  .brow{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-bottom:1px solid #1a2c47;font-variant-numeric:tabular-nums;}
+  .brow .rank{color:#7e93b3;min-width:38px;font-size:15px;padding-top:1px;}
+  .brow .who{flex:1;font-size:16px;line-height:1.2;}
+  .brow .who .msg{display:block;font-family:Georgia,serif;font-style:italic;font-size:12px;color:#9fb1c9;margin-top:2px;}
+  .brow .pts{font-weight:800;color:var(--knicks-orange);font-size:17px;}
+  .brow.you{background:rgba(245,132,38,.18);border-left:4px solid var(--knicks-orange);animation:rowIn .9s ease;}
+  @keyframes rowIn{
+    0%{opacity:0;transform:translateX(70px);}
+    55%{opacity:1;transform:translateX(-7px);}
+    100%{transform:none;}
+  }
+  .townEmpty{font-family:Georgia,serif;font-style:italic;font-size:14px;color:#9fb1c9;padding:8px 10px;line-height:1.5;}
   .repCall{
-    margin-top:20px;background:rgba(0,107,182,.18);border:2px solid var(--knicks-blue);
-    border-radius:6px;padding:14px 18px;font-family:Georgia,serif;font-size:16px;line-height:1.5;color:#dfe9f5;text-align:left;
+    margin-top:18px;background:rgba(0,107,182,.18);border:2px solid var(--knicks-blue);
+    border-radius:6px;padding:13px 16px;font-family:Georgia,serif;font-size:15px;line-height:1.5;color:#dfe9f5;text-align:left;
   }
   .repCall b{color:var(--knicks-orange);font-family:inherit;}
-  .repTag{font-family:"Avenir Next Condensed","Arial Narrow",Impact,sans-serif;text-transform:uppercase;letter-spacing:.15em;font-weight:800;color:#fff;display:block;margin-top:8px;font-size:20px;}
+  .repTag{font-family:"Avenir Next Condensed","Arial Narrow",Impact,sans-serif;text-transform:uppercase;letter-spacing:.15em;font-weight:800;color:#fff;display:block;margin-top:8px;font-size:19px;}
 
   @media (prefers-reduced-motion: reduce){
     .squig,.armL,.armR{animation:none;}
     #clockBox.urgent .hudVal{animation:none;}
+    #goalBar{animation:none;}
   }
-  @media (max-width:640px){
-    #hoopWrap{width:140px;}
-    .hudVal{font-size:28px;}
-    .pop{font-size:34px;}
-    .callout{font-size:42px;}
-    #goalPill{font-size:12px;padding:6px 12px;}
+  /* ---------- phone layout: keep score + hoop on screen ---------- */
+  @media (max-width:700px){
+    #hud{padding:8px 8px;}
+    .hudBox{min-width:74px;padding:5px 10px;border-width:2px;}
+    .hudLabel{font-size:8px;}
+    .hudVal{font-size:22px;}
+    #hoopWrap{width:108px;top:9%;right:2%;}
+    #goalBar{top:62px;font-size:15px;padding:8px 14px;max-width:96vw;white-space:normal;text-align:center;}
+    .pop{font-size:30px;}
+    .callout{font-size:36px;}
+    .mult{font-size:44px;}
+    .ball{width:42px;height:42px;}
+    #hint{font-size:12px;padding:8px 12px;}
+    .endGrid{grid-template-columns:1fr;gap:18px;}
+    .panel{padding:20px 16px;}
+    .finalScore{font-size:44px;}
   }
 </style>
 </head>
@@ -252,9 +270,13 @@
 
   <!-- INTRO -->
   <div class="screen" id="introScreen">
-    <div class="eyebrow">Madison Square Garden · Fan Court</div>
+    <div class="eyebrow">Madison Square Garden &middot; Fan Court</div>
     <h1>Garden<br>Shootout</h1>
-    <p class="sub">Step back from your screen, square up, and shoot jumpers at the camera. Slow, controlled, full-extension form earns the most points. You'll have <b>60 seconds</b> from your first shot &mdash; and watch out for the lanky guy.</p>
+    <p class="sub">Step back from your screen, square up, and shoot jumpers at the camera. Slow, controlled, full-extension form earns the most points. You'll have <b>30 seconds</b> from your first shot &mdash; shoot well and you'll earn more time. Watch out for the lanky guy.</p>
+    <div id="introTown">
+      <label for="homeTownIn">Where you reppin'? (town / city)</label>
+      <input id="homeTownIn" maxlength="32" autocomplete="address-level2">
+    </div>
     <button class="btn" id="startBtn">Enable camera &amp; warm up</button>
     <p class="note">Your camera feed stays on your device &mdash; nothing is recorded or uploaded.</p>
     <p class="err hidden" id="camErr"></p>
@@ -269,9 +291,9 @@
 
       <div id="hud">
         <div class="hudBox"><div class="hudLabel">Score</div><div class="hudVal" id="scoreVal">0</div></div>
-        <div id="goalPill" class="hidden"></div>
-        <div class="hudBox" id="clockBox"><div class="hudLabel">Clock</div><div class="hudVal" id="clockVal">60</div></div>
+        <div class="hudBox" id="clockBox"><div class="hudLabel">Clock</div><div class="hudVal" id="clockVal">30</div></div>
       </div>
+      <div id="goalBar" class="hidden"></div>
 
       <div id="hint">Take your first shot to start the clock</div>
       <button id="muteBtn" aria-label="Mute sound">&#128266;</button>
@@ -310,35 +332,26 @@
     </div>
   </div>
 
-  <!-- ENTRY FORM -->
-  <div class="screen hidden" id="entryScreen">
-    <div class="panel">
-      <div class="eyebrow">Buzzer!</div>
-      <h2>Time's up</h2>
-      <div class="finalScore" id="finalScore">0 pts</div>
-      <p class="note" id="shotSummary"></p>
-      <div class="field"><label for="nameIn">Your name</label><input id="nameIn" maxlength="24"></div>
-      <div class="field"><label for="townIn">Town / city</label><input id="townIn" maxlength="32"></div>
-      <div class="field"><label for="msgIn">If you could say one thing to the Knicks team, what would it be?</label><textarea id="msgIn" maxlength="140"></textarea></div>
-      <button class="btn" id="submitBtn">Post to the leaderboard</button>
-      <p class="note">Your name, town, score, and message will appear on the leaderboard.</p>
-    </div>
-  </div>
-
-  <!-- LEADERBOARD -->
-  <div class="screen hidden" id="boardScreen">
-    <div class="panel">
-      <div class="eyebrow">Garden Shootout</div>
-      <h2>Leaderboard</h2>
-      <div class="slotLabel">Where you landed</div>
-      <table class="board"><tbody id="slotRows"></tbody></table>
-      <div class="slotLabel">Top of the board</div>
-      <table class="board">
-        <thead><tr><th></th><th>Baller</th><th style="text-align:right">Pts</th></tr></thead>
-        <tbody id="topRows"></tbody>
-      </table>
-      <div class="repCall" id="repCall"></div>
-      <button class="btn blue" id="againBtn">Run it back</button>
+  <!-- END SCREEN: form on the left, live leaderboard on the right -->
+  <div class="screen hidden" id="endScreen">
+    <div class="panel wide">
+      <div class="endGrid">
+        <div id="endLeft">
+          <div class="eyebrow">Buzzer!</div>
+          <h2>Time's up</h2>
+          <div class="finalScore" id="finalScore">0 pts</div>
+          <p class="note" id="shotSummary" style="text-align:left"></p>
+          <div class="field"><label for="nameIn">Your name</label><input id="nameIn" maxlength="24"></div>
+          <div class="field"><label for="townIn">Town / city</label><input id="townIn" maxlength="32"></div>
+          <div class="field"><label for="msgIn">If you could say one thing to the Knicks team, what would it be?</label><textarea id="msgIn" maxlength="140"></textarea></div>
+          <button class="btn" id="submitBtn">Post to the leaderboard</button>
+          <button class="linkish" id="skipBtn">Skip &amp; play again</button>
+        </div>
+        <div id="endRight">
+          <h3>Leaderboard <small id="boardCount"></small></h3>
+          <div id="rightBody"><div class="townEmpty">Loading the board&hellip;</div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -346,11 +359,7 @@
 
 <script type="module">
   /* ============================================================
-     FIREBASE CONFIG — paste your own values between the quotes.
-     Get them from: Firebase console > Project settings (gear icon)
-     > Your apps > SDK setup and configuration > Config.
-     Until you paste real values, the game still works fine —
-     it just falls back to a per-device leaderboard.
+     FIREBASE CONFIG
      ============================================================ */
   const firebaseConfig = {
     apiKey:            "AIzaSyBVmep3tpwTtseKf5xXXZshCv8GBYQ6nC0",
@@ -370,7 +379,6 @@
         await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js");
       const app = initializeApp(firebaseConfig);
       const db = getDatabase(app);
-      // Visit counting: logs page views + distinct users to Google Analytics
       try{
         const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics.js");
         getAnalytics(app);
@@ -397,34 +405,42 @@
   /* ================= state ================= */
   const $ = id => document.getElementById(id);
   const stage = $("stage"), video = $("cam");
+  const INIT_TIME = 30;   // shorter games, more replays
+  const HALF_MARK = 15;   // score snapshot here drives the first bonus goal
+  const GOAL_AT   = 8;    // goal appears with this many seconds left
   let stream = null;
-  let running = false;        // detection loop active
-  let gameLive = false;       // clock running
-  let timeLeft = 60, totalElapsed = 0, score = 0, baseScore = 0, shots = 0, blocks = 0, bestShot = 0;
-  let scoreAt30 = 0;
+  let running = false;
+  let gameLive = false;
+  let timeLeft = INIT_TIME, totalElapsed = 0, score = 0, shots = 0, blocks = 0, bestShot = 0;
+  let scoreAtHalf = 0;
   let activeMult = null, multTO = null;
   let clockInt = null;
-  let wembyTO = null, wembyArmed = false;
+  let wembyTO = null, wembyArmed = false, wembyFlying = false;
   let lastShotAt = 0;
   let lastEntry = null;
   let prevFrame = null;
-  const hist = [];            // motion centroid history
+  const hist = [];        // motion centroid history
+  const baseCounts = [];  // rolling motion level, for adaptive thresholds
 
-  // bonus rounds: extension seconds, rate multiplier, minimum point gain required
+  // bonus rounds: all +20s now; each needs a faster scoring pace than the last
   const BONUS = [
-    { ext: 30, mult: 1.3, minGain: 60 },
-    { ext: 20, mult: 1.7, minGain: 85 },
-    { ext: 15, mult: 2.2, minGain: 110 }
+    { ext: 20, mult: 1.3, minGain: 50 },
+    { ext: 20, mult: 1.7, minGain: 70 },
+    { ext: 20, mult: 2.1, minGain: 90 }
   ];
   let bonusRound = 0, goal = 0, goalActive = false;
 
-  const PW = 96, PH = 72;     // processing resolution
+  const PW = 96, PH = 72;
   const proc = document.createElement("canvas");
   proc.width = PW; proc.height = PH;
   const pctx = proc.getContext("2d", { willReadFrequently: true });
 
+  /* ================= remembered identity (no re-asking) ================= */
+  function lsGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
+  function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+  $("homeTownIn").value = lsGet("gs-town");
+
   /* ================= leaderboard persistence ================= */
-  // Tries Firebase (global board) -> browser localStorage -> in-memory.
   const BOARD_KEY = "garden-shootout-board";
   let memBoard = [];
 
@@ -436,7 +452,7 @@
     try{
       const raw = localStorage.getItem(BOARD_KEY);
       if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) return arr; }
-    }catch(e){ /* storage blocked */ }
+    }catch(e){}
     return memBoard.slice();
   }
   async function saveEntry(entry){
@@ -450,18 +466,21 @@
       localStorage.setItem(BOARD_KEY, JSON.stringify(arr.slice(-200)));
       memBoard = arr;
       return;
-    }catch(e){ /* storage blocked */ }
+    }catch(e){}
     memBoard.push(entry);
   }
 
-  /* ================= audio engine (all sounds synthesized in-browser) ================= */
+  /* ================= audio engine (all synthesized in-browser) ================= */
   const AC = window.AudioContext || window.webkitAudioContext;
   let actx = null, master = null, musicGain = null, muted = false;
   let musicTimer = null, nextNote = 0, stepIdx = 0, noiseBuf = null;
-  const SPB16 = 60 / 122 / 4; // 16th-note length at 122 bpm
-  // E-minor funk bassline, 16 steps (0 = rest)
-  const BASS = [82.41,0,82.41,0, 98,0,82.41,110, 110,0,98,0, 123.47,98,82.41,0];
-
+  const BPM = 102, SP = 60 / BPM / 4;
+  const PAT = {
+    kick:  [1,0,0,0, 0,0,0,1, 0,0,1,0, 0,0,0,0],
+    clap:  [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1],
+    conga: [0,0,0,2, 0,0,1,0, 0,2,0,0, 0,1,0,2],
+    bass:  [65.41,0,0,0, 0,0,0,82.41, 65.41,0,0,65.41, 0,0,98,0]
+  };
   function ensureAudio(){
     if(!AC) return;
     if(!actx){
@@ -481,45 +500,59 @@
   }
   function playKick(t){
     const o = actx.createOscillator(), g = actx.createGain();
-    o.frequency.setValueAtTime(140, t);
-    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-    g.gain.setValueAtTime(0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-    o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.16);
+    o.frequency.setValueAtTime(115, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.16);
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.24);
   }
-  function playHat(t){
+  function playClap(t){
+    [[0, 0.16], [0.022, 0.1]].forEach(p => {
+      const s = actx.createBufferSource(); s.buffer = getNoise();
+      const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1100;
+      const g = actx.createGain();
+      g.gain.setValueAtTime(p[1], t + p[0]);
+      g.gain.exponentialRampToValueAtTime(0.001, t + p[0] + 0.16);
+      s.connect(f); f.connect(g); g.connect(musicGain);
+      s.start(t + p[0]); s.stop(t + p[0] + 0.18);
+    });
+  }
+  function playShaker(t, accent){
     const s = actx.createBufferSource(); s.buffer = getNoise();
-    const f = actx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
+    const f = actx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 6000;
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.07, t);
+    g.gain.setValueAtTime(accent ? 0.045 : 0.022, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
     s.connect(f); f.connect(g); g.connect(musicGain); s.start(t); s.stop(t + 0.06);
   }
-  function playSnare(t){
-    const s = actx.createBufferSource(); s.buffer = getNoise();
-    const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800;
+  function playConga(t, hi){
+    const f0 = hi === 2 ? 320 : 235;
+    const o = actx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.62, t + 0.14);
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    s.connect(f); f.connect(g); g.connect(musicGain); s.start(t); s.stop(t + 0.13);
+    g.gain.setValueAtTime(0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.22);
   }
   function playBass(t, freq){
-    const o = actx.createOscillator(); o.type = "square"; o.frequency.value = freq;
-    const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 750;
+    const o = actx.createOscillator(); o.type = "triangle"; o.frequency.value = freq;
+    const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 360;
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.16, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    o.connect(f); f.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.22);
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.32, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+    o.connect(f); f.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.36);
   }
   function musicTick(){
     while(nextNote < actx.currentTime + 0.12){
       const i = stepIdx % 16;
-      if(i % 4 === 0) playKick(nextNote);
-      if(i === 4 || i === 12) playSnare(nextNote);
-      if(i % 2 === 1) playHat(nextNote);
-      const f = BASS[i];
-      if(f) playBass(nextNote, (stepIdx % 32) >= 16 ? f * 2 : f); // octave jump every other bar
-      nextNote += SPB16;
+      if(PAT.kick[i]) playKick(nextNote);
+      if(PAT.clap[i]) playClap(nextNote);
+      playShaker(nextNote, i % 4 === 0);
+      if(PAT.conga[i]) playConga(nextNote, PAT.conga[i]);
+      if(PAT.bass[i]) playBass(nextNote, PAT.bass[i]);
+      nextNote += SP * (stepIdx % 2 === 0 ? 1.16 : 0.84); // swung sixteenths
       stepIdx++;
     }
   }
@@ -534,7 +567,7 @@
   function stopMusic(){ clearInterval(musicTimer); musicTimer = null; }
 
   // ----- sound effects -----
-  function sfxShot(){ // "fwip" on release
+  function sfxShot(){
     if(!actx) return; const t = actx.currentTime;
     const s = actx.createBufferSource(); s.buffer = getNoise();
     const f = actx.createBiquadFilter(); f.type = "bandpass";
@@ -545,25 +578,25 @@
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
     s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.22);
   }
-  function sfxSwish(){ // net swish + score chime when it drops
+  function sfxSwish(){ // net swish + warm, unhurried score chime
     if(!actx) return; const t = actx.currentTime;
     const s = actx.createBufferSource(); s.buffer = getNoise();
     const f = actx.createBiquadFilter(); f.type = "lowpass";
-    f.frequency.setValueAtTime(3200, t);
-    f.frequency.exponentialRampToValueAtTime(500, t + 0.28);
+    f.frequency.setValueAtTime(2600, t);
+    f.frequency.exponentialRampToValueAtTime(400, t + 0.35);
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.3, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.32);
-    [[880, 0], [1174.7, 0.09]].forEach(p => {
+    g.gain.setValueAtTime(0.28, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.4);
+    [[330, 0], [392, 0.14]].forEach(p => {
       const o = actx.createOscillator(); o.type = "sine"; o.frequency.value = p[0];
       const og = actx.createGain();
-      og.gain.setValueAtTime(0.12, t + p[1]);
-      og.gain.exponentialRampToValueAtTime(0.001, t + p[1] + 0.18);
-      o.connect(og); og.connect(master); o.start(t + p[1]); o.stop(t + p[1] + 0.2);
+      og.gain.setValueAtTime(0.16, t + p[1]);
+      og.gain.exponentialRampToValueAtTime(0.001, t + p[1] + 0.55);
+      o.connect(og); og.connect(master); o.start(t + p[1]); o.stop(t + p[1] + 0.58);
     });
   }
-  function sfxSwoop(){ // Wemby slides in
+  function sfxSwoop(){
     if(!actx) return; const t = actx.currentTime;
     const o = actx.createOscillator(); o.type = "sawtooth";
     o.frequency.setValueAtTime(750, t);
@@ -574,7 +607,7 @@
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
     o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + 0.78);
   }
-  function sfxBlock(){ // denied buzz
+  function sfxBlock(){
     if(!actx) return; const t = actx.currentTime;
     const o = actx.createOscillator(); o.type = "square"; o.frequency.value = 105;
     const g = actx.createGain();
@@ -582,7 +615,7 @@
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
     o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.32);
   }
-  function sfxPop(){ // multiplier popped
+  function sfxPop(){
     if(!actx) return; const t = actx.currentTime;
     [[523.25, 0], [1046.5, 0.06], [1568, 0.12]].forEach(p => {
       const o = actx.createOscillator(); o.type = "triangle"; o.frequency.value = p[0];
@@ -592,29 +625,41 @@
       o.connect(g); g.connect(master); o.start(t + p[1]); o.stop(t + p[1] + 0.14);
     });
   }
+  function sfxGoal(){ // urgent two-note horn: bonus time is on the table
+    if(!actx) return; const t = actx.currentTime;
+    [[220, 0], [277.18, 0.22]].forEach(p => {
+      const o = actx.createOscillator(); o.type = "sawtooth"; o.frequency.value = p[0];
+      const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900;
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.22, t + p[1]);
+      g.gain.exponentialRampToValueAtTime(0.001, t + p[1] + 0.3);
+      o.connect(f); f.connect(g); g.connect(master);
+      o.start(t + p[1]); o.stop(t + p[1] + 0.32);
+    });
+  }
   $("muteBtn").addEventListener("click", () => {
     muted = !muted;
     if(master) master.gain.value = muted ? 0 : 1;
     $("muteBtn").innerHTML = muted ? "&#128263;" : "&#128266;";
   });
 
-  /* ================= multiplier pickups ================= */
+  /* ================= multiplier pickups (never overlap with Wemby) ================= */
   function scheduleMult(){
     clearTimeout(multTO);
     multTO = setTimeout(() => {
       if(!gameLive) return;
-      if(activeMult){ scheduleMult(); return; }
+      if(activeMult || wembyArmed || wembyFlying){ scheduleMult(); return; }
       spawnMult();
     }, 6000 + Math.random() * 8000);
   }
   function spawnMult(){
-    const val = Math.random() < 0.28 ? 3 : 2;   // 3x is the rarer prize
+    const val = Math.random() < 0.28 ? 3 : 2;
     const el = document.createElement("div");
     el.className = "mult" + (val === 3 ? " x3" : "");
     el.textContent = val + "x";
     stage.appendChild(el);
     const r = stageRect();
-    const t0 = performance.now(), dur = 4500;
+    const t0 = performance.now(), dur = 5200;
     activeMult = { value: val, el };
     function drift(now){
       if(el.dataset.popped) return;
@@ -625,7 +670,6 @@
         scheduleMult();
         return;
       }
-      // top-left to bottom-right, with a wavy bob
       el.style.left = (-70 + t * (r.width + 140)) + "px";
       el.style.top  = (-50 + t * r.height * 0.85 + Math.sin(t * 6 * Math.PI) * 38) + "px";
       requestAnimationFrame(drift);
@@ -667,7 +711,7 @@
   function beginRound(){
     showScreen("gameScreen");
     resetGame();
-    ensureAudio();   // created inside the button click = allowed by browsers
+    ensureAudio();
     startMusic();
     running = true;
     requestAnimationFrame(loop);
@@ -675,13 +719,14 @@
 
   $("startBtn").addEventListener("click", async () => {
     $("camErr").classList.add("hidden");
+    lsSet("gs-town", $("homeTownIn").value.trim());
     try{
       await startCamera();
       beginRound();
     }catch(err){
       const e = $("camErr");
       e.textContent = "Couldn't access the camera (" + (err && err.name ? err.name : "error") +
-        "). If you're viewing this inside another app's preview, download the file and open it directly in your browser, then allow camera access. (Tip: the S key simulates a shot if you just want to test.)";
+        "). Check your browser's camera permission for this site, then try again. (Tip: the S key simulates a shot if you just want to test.)";
       e.classList.remove("hidden");
     }
   });
@@ -697,7 +742,7 @@
   let lastProc = 0;
   function loop(ts){
     if(!running) return;
-    if(ts - lastProc > 66){ // ~15 fps processing
+    if(ts - lastProc > 66){
       lastProc = ts;
       processFrame(performance.now());
     }
@@ -720,7 +765,11 @@
           if(Math.abs(g1 - g2) > 26){ count++; sumY += y; }
         }
       }
-      if(count > 25){
+      // rolling idle-motion level (median of ~2s) - lets thresholds adapt
+      // to how big you appear in frame and how much you fidget/talk
+      baseCounts.push(count);
+      if(baseCounts.length > 30) baseCounts.shift();
+      if(count > 20){
         hist.push({ t: now, y: (sumY / count) / PH, c: count });
       }
       while(hist.length && now - hist[0].t > 900) hist.shift();
@@ -729,11 +778,16 @@
     prevFrame = cur;
   }
 
+  function motionBaseline(){
+    if(!baseCounts.length) return 0;
+    const s = baseCounts.slice().sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  }
+
   function detectShot(now){
     if(hist.length < 4) return;
-    if(now - lastShotAt < 950) return; // cooldown between shots
+    if(now - lastShotAt < 850) return;
 
-    // Find the lowest point of motion, then the highest point AFTER it.
     let loIdx = 0;
     for(let i = 1; i < hist.length; i++){ if(hist[i].y > hist[loIdx].y) loIdx = i; }
     if(loIdx >= hist.length - 2) return;
@@ -744,19 +798,17 @@
     const rise = lo.y - hi.y;
     const dur = hi.t - lo.t;
 
-    // Anti-face-trigger: the swing must START in the lower half of the frame
-    // (a talking/moving head sits high and barely travels), must cover real
-    // vertical distance, and must involve a big patch of moving pixels.
-    if(lo.y < 0.42) return;                 // motion never dipped low enough = not a shot
-    if(rise < 0.12) return;                 // didn't travel far enough upward
-    if(dur < 120) return;                   // too fast to be a real arm swing (noise)
+    if(lo.y < 0.38) return;   // swing must start in the lower part of the frame
+    if(rise < 0.10) return;   // must travel upward meaningfully
+    if(dur < 120) return;     // too instant = noise
 
     let cSum = 0, n = 0;
     for(let i = loIdx; i <= hiIdx; i++){ cSum += hist[i].c; n++; }
     const avgC = cSum / Math.max(n, 1);
-    if(avgC < 70) return;                   // small motion blob (face/hands-out-of-frame)
+    // a real two-arm swing moves far more pixels than a talking face:
+    // require the swing to clearly stand out from this person's idle motion
+    if(avgC < Math.max(50, motionBaseline() * 2.2)) return;
 
-    // smoothness of upward velocity
     const vels = [];
     for(let i = loIdx + 1; i <= hiIdx; i++){
       const dt = (hist[i].t - hist[i-1].t) || 1;
@@ -774,10 +826,8 @@
 
   /* ================= scoring ================= */
   function formScore(rise, durMs, topY, smooth){
-    // SLOWER, controlled shots score higher: a deliberate ~0.9s+ swing maxes out,
-    // a 150ms flick bottoms out.
-    const durN  = Math.max(0, Math.min(1, (durMs - 150) / 750));
-    const extN  = Math.max(0, Math.min(1, (0.5 - topY) / 0.4)); // follow-through height
+    const durN  = Math.max(0, Math.min(1, (durMs - 150) / 750)); // slower = better
+    const extN  = Math.max(0, Math.min(1, (0.5 - topY) / 0.4));
     const smN   = (smooth === undefined) ? 0.5 : smooth;
     const blend = 0.45 * durN + 0.25 * smN + 0.30 * extN;
     return 10 + Math.round(blend * 8) * 5; // 10..50 in steps of 5
@@ -785,40 +835,31 @@
 
   function registerShot(rise, durMs, topY, smooth){
     lastShotAt = performance.now();
-    if(!gameLive && timeLeft === 60 && totalElapsed === 0){ startClock(); }
+    if(!gameLive && totalElapsed === 0 && timeLeft === INIT_TIME){ startClock(); }
     if(!gameLive) return;
     shots++;
-    sfxShot(); // ball leaves the hands
+    sfxShot();
     if(wembyArmed){
-      // Wemby only ever appears WITH a shot - exactly this one gets swatted.
       wembyArmed = false;
       blocks++;
       flyWemby();
-      animateBall(true);
-      setTimeout(sfxBlock, 380); // buzz when the swat lands
+      animateBall(true, 0);
+      setTimeout(sfxBlock, 380);
       spawnPop("BLOCKED! +0", true);
       showCallout("Wemby says no");
-      armWemby(); // schedule the next ambush
+      armWemby();
       return;
     }
-    const basePts = formScore(rise, durMs, topY, smooth);
-    let pts = basePts, m = 1;
-    if(activeMult){ m = popMult(); pts = basePts * m; }
+    const pts = formScore(rise, durMs, topY, smooth);
     bestShot = Math.max(bestShot, pts);
-    score += pts;          // displayed score (with multipliers)
-    baseScore += basePts;  // form-only score (drives bonus-time goals)
+    score += pts;
     $("scoreVal").textContent = score;
-    updateGoalPill();
-    animateBall(false);
-    setTimeout(sfxSwish, 720); // swish as it drops through
-    if(m > 1){
-      spawnPop("+" + basePts + " \u00d7" + m + " = " + pts + " pts", false, true);
-      showCallout(m + "x bonus!");
-    }else{
-      spawnPop("+" + pts + " pts", false, pts >= 40);
-      if(pts >= 45) showCallout("Swish!");
-    }
-    if(goalActive && baseScore >= goal) grantExtension();
+    updateGoalBar();
+    animateBall(false, pts); // the flying ball can still hit a 2x/3x mid-air
+    setTimeout(sfxSwish, 720);
+    spawnPop("+" + pts + " pts", false, pts >= 40);
+    if(pts >= 45) showCallout("Swish!");
+    if(goalActive && score >= goal) grantExtension();
   }
 
   /* ================= clock, wemby, bonus time ================= */
@@ -829,14 +870,14 @@
       timeLeft--;
       totalElapsed++;
       $("clockVal").textContent = timeLeft;
-      $("clockBox").classList.toggle("urgent", timeLeft <= 10);
+      $("clockBox").classList.toggle("urgent", timeLeft <= 8);
 
-      if(totalElapsed === 30) scoreAt30 = baseScore; // multipliers don't count toward bonus time
+      if(totalElapsed === HALF_MARK) scoreAtHalf = score;
 
-      if(timeLeft === 10 && bonusRound < BONUS.length && !goalActive) setGoal();
+      if(timeLeft === GOAL_AT && bonusRound < BONUS.length && !goalActive) setGoal();
 
       if(timeLeft <= 0){
-        if(goalActive && baseScore >= goal){ grantExtension(); }
+        if(goalActive && score >= goal){ grantExtension(); }
         else endGame();
       }
     }, 1000);
@@ -846,25 +887,26 @@
 
   function setGoal(){
     const b = BONUS[bonusRound];
-    const rate = baseScore / Math.max(totalElapsed, 1); // base pts per second so far
-    const gain = Math.max(b.minGain, Math.ceil(rate * 10 * b.mult / 5) * 5);
-    if(bonusRound === 0 && scoreAt30 > 0 && baseScore < 2 * scoreAt30){
-      goal = 2 * scoreAt30;            // classic "double your 30s score"
+    const rate = score / Math.max(totalElapsed, 1);
+    const gain = Math.max(b.minGain, Math.ceil(rate * GOAL_AT * b.mult / 5) * 5);
+    if(bonusRound === 0 && scoreAtHalf > 0 && score < 2 * scoreAtHalf){
+      goal = 2 * scoreAtHalf;        // double your halfway score
     }else{
-      goal = baseScore + gain;         // already doubled it (or no 30s score): raise the bar
+      goal = score + gain;
     }
     goal = Math.ceil(goal / 5) * 5;
     goalActive = true;
-    showNotice("Hit <b>" + goal + " form points</b> to earn <b>+" + b.ext + " seconds!</b>" +
-      "<br><span style=\"font-size:.55em;letter-spacing:.1em;color:#9fb1c9;\">Multiplier bonuses don't count toward this goal</span>");
-    updateGoalPill();
+    sfxGoal();
+    updateGoalBar();
   }
 
-  function updateGoalPill(){
-    const pill = $("goalPill");
-    if(!goalActive){ pill.classList.add("hidden"); return; }
-    pill.textContent = "Goal: " + goal + " \u00b7 you: " + baseScore + " \u2192 +" + BONUS[bonusRound].ext + "s";
-    pill.classList.remove("hidden");
+  // One glanceable line, updates live: "85 MORE PTS = +20 SEC"
+  function updateGoalBar(){
+    const bar = $("goalBar");
+    if(!goalActive){ bar.classList.add("hidden"); return; }
+    const need = Math.max(0, goal - score);
+    bar.textContent = need + " more pts = +" + BONUS[bonusRound].ext + " sec";
+    bar.classList.remove("hidden");
   }
 
   function grantExtension(){
@@ -872,22 +914,28 @@
     timeLeft += b.ext;
     bonusRound++;
     goalActive = false;
-    $("goalPill").classList.add("hidden");
+    updateGoalBar();
     $("clockVal").textContent = timeLeft;
-    $("clockBox").classList.toggle("urgent", timeLeft <= 10);
+    $("clockBox").classList.toggle("urgent", timeLeft <= 8);
     showCallout("+" + b.ext + " seconds!");
   }
 
   function armWemby(){
     clearTimeout(wembyTO);
-    const delay = 12000 + Math.random() * 13000; // 12 to 25s
-    wembyTO = setTimeout(() => { if(gameLive) wembyArmed = true; }, delay);
+    const delay = 9000 + Math.random() * 10000; // 9-19s, scaled for shorter games
+    wembyTO = setTimeout(tryArmWemby, delay);
   }
-
+  function tryArmWemby(){
+    if(!gameLive) return;
+    if(activeMult){ wembyTO = setTimeout(tryArmWemby, 3000); return; } // never overlap a multiplier
+    wembyArmed = true;
+  }
   function flyWemby(){
     sfxSwoop();
+    wembyFlying = true;
+    setTimeout(() => { wembyFlying = false; }, 3100);
     const w = $("wemby");
-    w.classList.remove("fly"); void w.offsetWidth; // restart animation
+    w.classList.remove("fly"); void w.offsetWidth;
     w.style.top = (5 + Math.random() * 25) + "%";
     w.classList.add("fly");
   }
@@ -896,26 +944,30 @@
     gameLive = false;
     clearInterval(clockInt);
     clearTimeout(wembyTO);
-    wembyArmed = false;
+    wembyArmed = false; wembyFlying = false;
     running = false;
     stopMusic();
     clearMult();
-    stopCamera(); // camera light goes OFF on the results screens
+    stopCamera();
     $("finalScore").textContent = score + " pts";
     $("shotSummary").textContent = shots + " shots \u00b7 best shot +" + bestShot +
       (blocks ? " \u00b7 blocked by Wemby \u00d7" + blocks : " \u00b7 never blocked");
-    showScreen("entryScreen");
+    $("nameIn").value = lsGet("gs-name");
+    $("townIn").value = lsGet("gs-town");
+    showScreen("endScreen");
+    renderPreBoard(); // leaderboard is visible immediately, next to the form
   }
 
   function resetGame(){
-    timeLeft = 60; totalElapsed = 0; score = 0; baseScore = 0; shots = 0; blocks = 0; bestShot = 0;
-    scoreAt30 = 0; bonusRound = 0; goal = 0; goalActive = false;
-    hist.length = 0; prevFrame = null; lastShotAt = 0; wembyArmed = false;
+    timeLeft = INIT_TIME; totalElapsed = 0; score = 0; shots = 0; blocks = 0; bestShot = 0;
+    scoreAtHalf = 0; bonusRound = 0; goal = 0; goalActive = false;
+    hist.length = 0; baseCounts.length = 0; prevFrame = null; lastShotAt = 0;
+    wembyArmed = false; wembyFlying = false;
     clearMult();
     $("scoreVal").textContent = "0";
-    $("clockVal").textContent = "60";
+    $("clockVal").textContent = INIT_TIME;
     $("clockBox").classList.remove("urgent");
-    $("goalPill").classList.add("hidden");
+    $("goalBar").classList.add("hidden");
     $("hint").style.display = "";
     $("wemby").classList.remove("fly");
   }
@@ -923,7 +975,7 @@
   /* ================= visuals ================= */
   function stageRect(){ return stage.getBoundingClientRect(); }
 
-  function animateBall(blocked){
+  function animateBall(blocked, basePts){
     const r = stageRect();
     const hoop = $("hoopWrap").getBoundingClientRect();
     const ball = document.createElement("div");
@@ -956,6 +1008,25 @@
       ball.style.left = bez(t, sx, cx, ex) + "px";
       ball.style.top  = bez(t, sy, cy, ey) + "px";
       ball.style.transform = "rotate(" + (t * 540) + "deg)";
+      // multiplier only counts if the BALL physically touches the 2x/3x text
+      if(!blocked && activeMult){
+        const mr = activeMult.el.getBoundingClientRect();
+        const br = ball.getBoundingClientRect();
+        const dx = (mr.left + mr.width / 2) - (br.left + br.width / 2);
+        const dy = (mr.top + mr.height / 2) - (br.top + br.height / 2);
+        if(Math.hypot(dx, dy) < 62){
+          const m = popMult();
+          if(m > 1){
+            const bonus = basePts * (m - 1);
+            score += bonus;
+            $("scoreVal").textContent = score;
+            updateGoalBar();
+            spawnPop("\u00d7" + m + "! +" + bonus + " bonus", false, true);
+            showCallout(m + "x!");
+            if(goalActive && score >= goal) grantExtension();
+          }
+        }
+      }
       requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
@@ -967,8 +1038,8 @@
     const p = document.createElement("div");
     p.className = "pop" + (isBlock ? " block" : "") + (isSwish ? " swish" : "");
     p.textContent = text;
-    p.style.left = (r.width * (0.25 + Math.random() * 0.4)) + "px";
-    p.style.top  = (r.height * (0.3 + Math.random() * 0.25)) + "px";
+    p.style.left = (r.width * (0.2 + Math.random() * 0.4)) + "px";
+    p.style.top  = (r.height * (0.32 + Math.random() * 0.25)) + "px";
     stage.appendChild(p);
     setTimeout(() => p.remove(), 1050);
   }
@@ -981,15 +1052,96 @@
     setTimeout(() => c.remove(), 950);
   }
 
-  function showNotice(html){
-    const n = document.createElement("div");
-    n.className = "notice";
-    n.innerHTML = html;
-    stage.appendChild(n);
-    setTimeout(() => n.remove(), 4100);
+  /* ================= leaderboard rendering ================= */
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function stateOf(town){
+    const p = String(town || "").split(",");
+    return p.length > 1 ? p[p.length - 1].trim().toLowerCase() : "";
+  }
+  function rowHTML(rank, e, you){
+    return '<div class="brow' + (you ? " you" : "") + '">' +
+      '<div class="rank">#' + rank + '</div>' +
+      '<div class="who">' + esc(e.name) +
+        '<span class="msg">' + esc(e.town) + ' \u2014 \u201C' + esc(e.msg) + '\u201D</span></div>' +
+      '<div class="pts">' + e.score + '</div></div>';
+  }
+  function sortBoard(b){ return b.slice().sort((a, c) => c.score - a.score || a.ts - c.ts); }
+
+  // Shown the moment the game ends: top players + someone from YOUR town
+  async function renderPreBoard(){
+    const town = ($("townIn").value.trim() || lsGet("gs-town") || "").toLowerCase();
+    let board;
+    try{ board = sortBoard(await loadBoard()); }
+    catch(e){ board = []; }
+    $("boardCount").textContent = board.length ? "\u00b7 " + board.length + " ballers" : "";
+    let html = '<div class="slotLabel">Top of the board</div>';
+    if(!board.length){
+      html += '<div class="townEmpty">Nobody on the board yet \u2014 you\u2019re about to be first.</div>';
+    }else{
+      html += board.slice(0, 8).map((e, k) => rowHTML(k + 1, e, false)).join("");
+    }
+    html += '<div class="slotLabel">Your turf</div>';
+    const local = board.find(e => (e.town || "").toLowerCase() === town && town);
+    if(local){
+      html += rowHTML(board.indexOf(local) + 1, local, false) +
+        '<div class="townEmpty">That\u2019s the score to beat where you\u2019re from.</div>';
+    }else{
+      const st = stateOf(town);
+      const near = st ? board.find(e => stateOf(e.town) === st) : null;
+      if(near){
+        html += rowHTML(board.indexOf(near) + 1, near, false) +
+          '<div class="townEmpty">Nobody from your town yet \u2014 this is the closest rep. Claim your block.</div>';
+      }else{
+        html += '<div class="townEmpty">Nobody from your area has played yet. Post your score and put it on the map.</div>';
+      }
+    }
+    $("rightBody").innerHTML = html;
   }
 
-  /* ================= leaderboard flow ================= */
+  // After posting: your row slides into its slot between the next-best and next-worst
+  function renderPostBoard(board){
+    const isYou = e => e.id === lastEntry.id;
+    const i = board.findIndex(isYou);
+    let html = '<div class="slotLabel">Where you landed</div>';
+    if(i > 0)                 html += rowHTML(i,     board[i-1], false);
+                              html += rowHTML(i + 1, board[i],   true);
+    if(i >= 0 && i < board.length - 1) html += rowHTML(i + 2, board[i+1], false);
+    html += '<div class="slotLabel">Top of the board</div>';
+    html += board.slice(0, 5).map((e, k) => rowHTML(k + 1, e, isYou(e))).join("");
+    $("rightBody").innerHTML = html;
+  }
+
+  function renderRepCall(board){
+    const townLC = lastEntry.town.toLowerCase();
+    const isYou = e => e.id === lastEntry.id;
+    const champ = board.find(e => (e.town || "").toLowerCase() === townLC);
+    let inner;
+    if(!champ || isYou(champ)){
+      inner = "You're now the one to beat in <b>" + esc(lastEntry.town) + "</b> with <b>" + lastEntry.score +
+        " pts</b>. Think you can top yourself?<span class=\"repTag\">Defend the block. Run it back.</span>";
+    }else{
+      inner = "<b>" + esc(champ.name) + "</b> holds it down for <b>" + esc(champ.town) + "</b> with <b>" +
+        champ.score + " pts</b>. You put up " + lastEntry.score + ". Think you can beat that?" +
+        "<span class=\"repTag\">Can you represent?</span>";
+    }
+    return inner;
+  }
+
+  /* ================= submit / play again ================= */
+  async function playAgain(){
+    try{
+      await startCamera();
+      beginRound();
+    }catch(err){
+      showScreen("introScreen");
+      const e = $("camErr");
+      e.textContent = "Couldn't restart the camera (" + (err && err.name ? err.name : "error") + "). Check your browser's camera permission and try again.";
+      e.classList.remove("hidden");
+    }
+  }
+
+  $("skipBtn").addEventListener("click", playAgain);
+
   $("submitBtn").addEventListener("click", async () => {
     const btn = $("submitBtn");
     if(btn.disabled) return;
@@ -998,6 +1150,8 @@
     const name = ($("nameIn").value.trim() || "Anonymous").slice(0, 24);
     const town = ($("townIn").value.trim() || "Unknown").slice(0, 32);
     const msg  = ($("msgIn").value.trim() || "\u2014").slice(0, 140);
+    lsSet("gs-name", name);
+    lsSet("gs-town", town);
     lastEntry = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       name, town, msg, score, ts: Date.now()
@@ -1006,61 +1160,28 @@
       await saveEntry(lastEntry);
       let board = await loadBoard();
       if(!board.some(e => e.id === lastEntry.id)) board.push(lastEntry);
-      board.sort((a, b) => b.score - a.score || a.ts - b.ts);
-      renderBoard(board);
-      showScreen("boardScreen");
-    }finally{
+      board = sortBoard(board);
+      renderPostBoard(board);
+      // left column becomes the challenge + play-again
+      const left = $("endLeft");
+      left.innerHTML = '<div class="eyebrow">Posted!</div><h2>You\u2019re on the board</h2>' +
+        '<div class="finalScore">' + score + ' pts</div>' +
+        '<div class="repCall">' + renderRepCall(board) + '</div>';
+      const again = document.createElement("button");
+      again.className = "btn blue";
+      again.style.cssText = "display:block;margin:22px auto 0;";
+      again.textContent = "Run it back";
+      again.addEventListener("click", playAgain);
+      left.appendChild(again);
+    }catch(e){
       btn.disabled = false;
       btn.textContent = "Post to the leaderboard";
     }
   });
 
-  function rowHTML(rank, e, you){
-    return '<tr class="' + (you ? "you" : "") + '">' +
-      '<td class="rank">#' + rank + '</td>' +
-      '<td>' + esc(e.name) + ' <span class="msg">' + esc(e.town) + ' \u2014 \u201C' + esc(e.msg) + '\u201D</span></td>' +
-      '<td class="pts">' + e.score + '</td></tr>';
-  }
-  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-
-  function renderBoard(board){
-    const isYou = e => e.id === lastEntry.id;
-    const i = board.findIndex(isYou);
-    let slot = "";
-    if(i > 0)                slot += rowHTML(i,     board[i-1], false);
-                             slot += rowHTML(i + 1, board[i],   true);
-    if(i < board.length - 1) slot += rowHTML(i + 2, board[i+1], false);
-    $("slotRows").innerHTML = slot;
-    $("topRows").innerHTML = board.slice(0, 5).map((e, k) => rowHTML(k + 1, e, isYou(e))).join("");
-
-    const townLC = lastEntry.town.toLowerCase();
-    const champ = board.filter(e => (e.town || "").toLowerCase() === townLC)[0]; // board is sorted
-    const rc = $("repCall");
-    if(!champ || isYou(champ)){
-      rc.innerHTML = "You're now the one to beat in <b>" + esc(lastEntry.town) + "</b> with <b>" + lastEntry.score +
-        " pts</b>. Think you can top yourself?<span class=\"repTag\">Defend the block. Run it back.</span>";
-    }else{
-      rc.innerHTML = "<b>" + esc(champ.name) + "</b> holds it down for <b>" + esc(champ.town) + "</b> with <b>" +
-        champ.score + " pts</b>. You put up " + lastEntry.score + ". Think you can beat that?" +
-        "<span class=\"repTag\">Can you represent?</span>";
-    }
-  }
-
-  $("againBtn").addEventListener("click", async () => {
-    try{
-      await startCamera(); // camera comes back ON only when running it back
-      beginRound();
-    }catch(err){
-      showScreen("introScreen");
-      const e = $("camErr");
-      e.textContent = "Couldn't restart the camera (" + (err && err.name ? err.name : "error") + "). Check your browser's camera permission and try again.";
-      e.classList.remove("hidden");
-    }
-  });
-
   /* ================= screens ================= */
   function showScreen(id){
-    ["introScreen","gameScreen","entryScreen","boardScreen"].forEach(s =>
+    ["introScreen","gameScreen","endScreen"].forEach(s =>
       $(s).classList.toggle("hidden", s !== id));
   }
 })();
